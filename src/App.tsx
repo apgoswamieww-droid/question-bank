@@ -25,6 +25,7 @@ import {
   Save,
   FileDown,
   Clock,
+  Printer,
 } from "lucide-react";
 
 import {
@@ -38,6 +39,7 @@ import {
 import { ResizableImage } from "./ResizableImage";
 import { MathNode } from "./MathNode";
 import { MathEditorModal } from "./MathEditorModal";
+import { PrintPreviewModal } from "./print/PrintPreviewModal";
 import type { RecentFileItem } from "./electron.d";
 
 import "./index.css";
@@ -128,6 +130,7 @@ function App() {
   const [isRecentOpen, setIsRecentOpen] = useState<boolean>(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState<boolean>(false);
 
   // Math Modal States
   const [isMathModalOpen, setIsMathModalOpen] = useState(false);
@@ -805,6 +808,14 @@ function App() {
             <button type="button" className="btn-with-label" title="Save As... (Ctrl+Shift+S)" onClick={handleSaveAs}>
               <FileDown size={15} strokeWidth={2} /> <span>Save As</span>
             </button>
+            <button
+              type="button"
+              className="btn-with-label btn-action-accent"
+              title="Print Preview & PDF Export"
+              onClick={() => setIsPrintPreviewOpen(true)}
+            >
+              <Printer size={15} strokeWidth={2} /> <span>Print Preview / PDF</span>
+            </button>
           </div>
 
           <div className="toolbar-separator" />
@@ -1090,6 +1101,13 @@ function App() {
         initialDisplayMode={mathInitialDisplayMode}
         onClose={() => setIsMathModalOpen(false)}
         onSubmit={handleMathSubmit}
+      />
+
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        documentJSON={editor?.getJSON() || {}}
+        documentTitle={docTitle}
       />
     </div>
   );

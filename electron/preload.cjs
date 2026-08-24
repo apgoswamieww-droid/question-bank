@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getRecentFiles: () => ipcRenderer.invoke("recent:get"),
   addRecentFile: (filePath) => ipcRenderer.invoke("recent:add", filePath),
   confirmClose: (isDirty) => ipcRenderer.invoke("dialog:confirmClose", isDirty),
+  exportPdf: (htmlContent, defaultTitle) => ipcRenderer.invoke("pdf:export", { htmlContent, defaultTitle }),
+  printDocument: (htmlContent) => ipcRenderer.invoke("document:print", htmlContent),
   onCloseRequested: (callback) => {
     const handler = () => callback();
     ipcRenderer.on("app:closeRequested", handler);

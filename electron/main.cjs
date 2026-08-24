@@ -161,6 +161,78 @@ ipcMain.handle("recent:add", async (_event, filePath) => {
   return addRecentFileToStore(filePath);
 });
 
+ipcMain.handle("pdf:export", async (_event, { htmlContent, defaultTitle }) => {
+  if (!mainWindow) return null;
+
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Export Question Paper to PDF",
+    defaultPath: defaultTitle ? `${defaultTitle}.pdf` : "Question Paper.pdf",
+    filters: [{ name: "PDF Document", extensions: ["pdf"] }],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return null;
+  }
+
+  let savePath = result.filePath;
+  if (!savePath.endsWith(".pdf")) {
+    savePath += ".pdf";
+  }
+
+  const printWin = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  try {
+    const encodedHtml = "data:text/html;charset=utf-8," + encodeURIComponent(htmlContent);
+    await printWin.loadURL(encodedHtml);
+
+    const pdfBuffer = await printWin.webContents.printToPDF({
+      printBackground: true,
+      pageSize: "A4",
+      landscape: false,
+      margins: { marginType: "none" },
+    });
+
+    await fs.promises.writeFile(savePath, pdfBuffer);
+    printWin.destroy();
+    return { success: true, filePath: savePath };
+  } catch (error) {
+    if (!printWin.isDestroyed()) printWin.destroy();
+    console.error("PDF Export main error:", error);
+    throw new Error(`Failed to generate PDF: ${error.message}`);
+  }
+});
+
+ipcMain.handle("document:print", async (_event, htmlContent) => {
+  const printWin = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  try {
+    const encodedHtml = "data:text/html;charset=utf-8," + encodeURIComponent(htmlContent);
+    await printWin.loadURL(encodedHtml);
+    printWin.webContents.print({ silent: false, printBackground: true }, (success, failureReason) => {
+      if (!success) console.error("Print failed:", failureReason);
+      printWin.destroy();
+    });
+    return true;
+  } catch (error) {
+    if (!printWin.isDestroyed()) printWin.destroy();
+    console.error("Print main error:", error);
+    throw new Error(`Failed to trigger print: ${error.message}`);
+  }
+});
+
+
 ipcMain.handle("dialog:confirmClose", async (_event, isDirty) => {
   if (!mainWindow) return "dontsave";
 

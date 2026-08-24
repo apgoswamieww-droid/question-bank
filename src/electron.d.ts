@@ -12,6 +12,8 @@ export interface ElectronAPI {
   getRecentFiles: () => Promise<RecentFileItem[]>;
   addRecentFile: (filePath: string) => Promise<RecentFileItem[]>;
   confirmClose: (isDirty: boolean) => Promise<"save" | "dontsave" | "cancel">;
+  exportPdf: (htmlContent: string, defaultTitle?: string) => Promise<{ success: boolean; filePath: string } | null>;
+  printDocument: (htmlContent: string) => Promise<boolean>;
   onCloseRequested: (callback: () => void) => () => void;
   onMenuAction: (callback: (action: "new" | "open" | "save" | "saveAs") => void) => () => void;
 }
