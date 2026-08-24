@@ -27,6 +27,7 @@ import {
   Printer,
   Sliders,
   Clock,
+  Languages,
 } from "lucide-react";
 
 import {
@@ -42,6 +43,8 @@ import { MathNode } from "./MathNode";
 import { MathEditorModal } from "./MathEditorModal";
 import { PrintPreviewModal } from "./print/PrintPreviewModal";
 import { ExamSettingsModal } from "./components/ExamSettingsModal";
+import { GujaratiConverterModal } from "./components/GujaratiConverterModal";
+import type { KapFont } from "./converter/types";
 import { DEFAULT_EXAM_METADATA } from "./types/examMetadata";
 import type { ExamMetadata } from "./types/examMetadata";
 import { migrateDocument } from "./utils/documentMigration";
@@ -141,6 +144,7 @@ function App() {
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState<boolean>(false);
   const [examMetadata, setExamMetadata] = useState<ExamMetadata>(DEFAULT_EXAM_METADATA);
   const [isExamSettingsOpen, setIsExamSettingsOpen] = useState<boolean>(false);
+  const [isConverterOpen, setIsConverterOpen] = useState<boolean>(false);
 
   // Math Modal States
   const [isMathModalOpen, setIsMathModalOpen] = useState(false);
@@ -524,6 +528,49 @@ function App() {
     setExamMetadata(updatedMetadata);
     setIsDirty(true);
   }, []);
+
+  // Gujarati Converter: insert at cursor / replace selection, reusing the
+  // existing single "fontFamily" FontMark (no second mark system).
+  const handleConverterInsert = useCallback(
+    (kapText: string, font: KapFont) => {
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({
+          type: "text",
+          text: kapText,
+          marks: [{ type: "fontFamily", attrs: { fontFamily: font } }],
+        })
+        .run();
+    },
+    [editor]
+  );
+
+  const handleConverterReplaceSelection = useCallback(
+    (kapText: string, font: KapFont) => {
+      if (!editor) return;
+      const { from, to } = editor.state.selection;
+      const startMarks =
+        editor.state.doc.resolve(from).marks() ?? editor.state.storedMarks ?? [];
+      const preservedMarks = startMarks
+        .filter((m) => m.type.name !== "fontFamily")
+        .map((m) => ({ type: m.type.name, attrs: m.attrs }));
+
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(
+          { from, to },
+          {
+            type: "text",
+            text: kapText,
+            marks: [...preservedMarks, { type: "fontFamily", attrs: { fontFamily: font } }],
+          }
+        )
+        .run();
+    },
+    [editor]
+  );
 
   const handleMathSubmit = (latex: string, displayMode: boolean) => {    if (!editor) return;
 
@@ -1101,6 +1148,17 @@ function App() {
             >
               <Sigma size={16} strokeWidth={2} /> <span>Equation</span>
             </button>
+
+            <button
+              type="button"
+              className="btn-with-label btn-action-accent"
+              title="Gujarati Unicode to KAP Converter"
+              aria-label="Gujarati Converter"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setIsConverterOpen(true)}
+            >
+              <Languages size={16} strokeWidth={2} /> <span>Gujarati</span>
+            </button>
           </div>
 
           <div className="toolbar-separator" />
@@ -1128,6 +1186,13 @@ function App() {
         initialDisplayMode={mathInitialDisplayMode}
         onClose={() => setIsMathModalOpen(false)}
         onSubmit={handleMathSubmit}
+      />
+
+      <GujaratiConverterModal
+        isOpen={isConverterOpen}
+        onClose={() => setIsConverterOpen(false)}
+        onInsert={handleConverterInsert}
+        onReplaceSelection={handleConverterReplaceSelection}
       />
 
       {isExamSettingsOpen && (
