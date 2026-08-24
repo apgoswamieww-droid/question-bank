@@ -793,17 +793,17 @@ function App() {
 
         <div className="toolbar doc-toolbar">
           <div className="toolbar-group">
-            <button type="button" title="New Document (Ctrl+N)" onClick={handleNew}>
-              <FilePlus size={16} strokeWidth={2} /> <span>New</span>
+            <button type="button" className="btn-with-label" title="New Document (Ctrl+N)" onClick={handleNew}>
+              <FilePlus size={15} strokeWidth={2} /> <span>New</span>
             </button>
-            <button type="button" title="Open Document (Ctrl+O)" onClick={handleOpen}>
-              <FolderOpen size={16} strokeWidth={2} /> <span>Open</span>
+            <button type="button" className="btn-with-label" title="Open Document (Ctrl+O)" onClick={handleOpen}>
+              <FolderOpen size={15} strokeWidth={2} /> <span>Open</span>
             </button>
-            <button type="button" title="Save Document (Ctrl+S)" onClick={handleSave}>
-              <Save size={16} strokeWidth={2} /> <span>Save</span>
+            <button type="button" className="btn-with-label" title="Save Document (Ctrl+S)" onClick={handleSave}>
+              <Save size={15} strokeWidth={2} /> <span>Save</span>
             </button>
-            <button type="button" title="Save As... (Ctrl+Shift+S)" onClick={handleSaveAs}>
-              <FileDown size={16} strokeWidth={2} /> <span>Save As</span>
+            <button type="button" className="btn-with-label" title="Save As... (Ctrl+Shift+S)" onClick={handleSaveAs}>
+              <FileDown size={15} strokeWidth={2} /> <span>Save As</span>
             </button>
           </div>
 
@@ -812,10 +812,11 @@ function App() {
           <div className="toolbar-group recent-files-container">
             <button
               type="button"
+              className="btn-with-label"
               title="Recent Documents"
               onClick={() => setIsRecentOpen((prev) => !prev)}
             >
-              <Clock size={16} strokeWidth={2} /> <span>Recent</span>
+              <Clock size={15} strokeWidth={2} /> <span>Recent Files</span>
             </button>
             {isRecentOpen && (
               <div className="recent-dropdown">
@@ -842,28 +843,30 @@ function App() {
           </div>
         </div>
 
-        <div className="toolbar">
+        <div className="toolbar editor-toolbar">
           <div className="toolbar-group">
             <button
               type="button"
-              title="Undo"
+              className="btn-icon-only"
+              title="Undo (Ctrl+Z)"
               aria-label="Undo"
               disabled={!editor.can().undo()}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().undo().run()}
             >
-              <Undo2 size={18} strokeWidth={2} />
+              <Undo2 size={16} strokeWidth={2} />
             </button>
 
             <button
               type="button"
-              title="Redo"
+              className="btn-icon-only"
+              title="Redo (Ctrl+Y)"
               aria-label="Redo"
               disabled={!editor.can().redo()}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().redo().run()}
             >
-              <Redo2 size={18} strokeWidth={2} />
+              <Redo2 size={16} strokeWidth={2} />
             </button>
           </div>
 
@@ -872,35 +875,35 @@ function App() {
           <div className="toolbar-group">
             <button
               type="button"
-              title="Bold"
+              className={`btn-icon-only ${editor.isActive("bold") ? "active" : ""}`}
+              title="Bold (Ctrl+B)"
               aria-label="Bold"
-              className={editor.isActive("bold") ? "active" : ""}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().toggleBold().run()}
             >
-              <Bold size={18} strokeWidth={2} />
+              <Bold size={16} strokeWidth={2} />
             </button>
 
             <button
               type="button"
-              title="Italic"
+              className={`btn-icon-only ${editor.isActive("italic") ? "active" : ""}`}
+              title="Italic (Ctrl+I)"
               aria-label="Italic"
-              className={editor.isActive("italic") ? "active" : ""}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().toggleItalic().run()}
             >
-              <Italic size={18} strokeWidth={2} />
+              <Italic size={16} strokeWidth={2} />
             </button>
 
             <button
               type="button"
-              title="Underline"
+              className={`btn-icon-only ${editor.isActive("underline") ? "active" : ""}`}
+              title="Underline (Ctrl+U)"
               aria-label="Underline"
-              className={editor.isActive("underline") ? "active" : ""}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().toggleUnderline().run()}
             >
-              <Underline size={18} strokeWidth={2} />
+              <Underline size={16} strokeWidth={2} />
             </button>
           </div>
 
@@ -908,10 +911,11 @@ function App() {
 
           <div className="toolbar-group">
             <select
+              className="toolbar-select font-select"
               value={selectedFont}
               onMouseDown={saveSelection}
               onChange={(e) => applyFont(e.target.value)}
-
+              title="Font Family"
             >
               {fonts.map((font) => (
                 <option key={font} value={font}>
@@ -921,10 +925,11 @@ function App() {
             </select>
 
             <select
+              className="toolbar-select size-select"
               value={selectedFontSize}
               onMouseDown={saveSelection}
               onChange={(e) => applyFontSize(e.target.value)}
-
+              title="Font Size"
             >
               {fontSizes.map((size) => (
                 <option key={size} value={size}>
@@ -939,61 +944,61 @@ function App() {
           <div className="toolbar-group">
             <button
               type="button"
-              title="Align Left"
-              aria-label="Align Left"
-              className={
+              className={`btn-icon-only ${
                 editor.isActive("resizableImage", { alignment: "left" }) ||
                 editor.isActive({ textAlign: "left" })
                   ? "active"
                   : ""
-              }
+              }`}
+              title="Align Left"
+              aria-label="Align Left"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleAlignment("left")}
             >
-              <AlignLeft size={18} strokeWidth={2} />
+              <AlignLeft size={16} strokeWidth={2} />
             </button>
 
             <button
               type="button"
-              title="Align Center"
-              aria-label="Align Center"
-              className={
+              className={`btn-icon-only ${
                 editor.isActive("resizableImage", { alignment: "center" }) ||
                 editor.isActive({ textAlign: "center" })
                   ? "active"
                   : ""
-              }
+              }`}
+              title="Align Center"
+              aria-label="Align Center"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleAlignment("center")}
             >
-              <AlignCenter size={18} strokeWidth={2} />
+              <AlignCenter size={16} strokeWidth={2} />
             </button>
 
             <button
               type="button"
-              title="Align Right"
-              aria-label="Align Right"
-              className={
+              className={`btn-icon-only ${
                 editor.isActive("resizableImage", { alignment: "right" }) ||
                 editor.isActive({ textAlign: "right" })
                   ? "active"
                   : ""
-              }
+              }`}
+              title="Align Right"
+              aria-label="Align Right"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleAlignment("right")}
             >
-              <AlignRight size={18} strokeWidth={2} />
+              <AlignRight size={16} strokeWidth={2} />
             </button>
 
             <button
               type="button"
+              className={`btn-icon-only ${editor.isActive({ textAlign: "justify" }) ? "active" : ""}`}
               title="Justify"
               aria-label="Justify"
-              className={editor.isActive({ textAlign: "justify" }) ? "active" : ""}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleAlignment("justify")}
             >
-              <AlignJustify size={18} strokeWidth={2} />
+              <AlignJustify size={16} strokeWidth={2} />
             </button>
           </div>
 
@@ -1002,24 +1007,24 @@ function App() {
           <div className="toolbar-group">
             <button
               type="button"
+              className={`btn-icon-only ${editor.isActive("bulletList") ? "active" : ""}`}
               title="Bullet List"
               aria-label="Bullet List"
-              className={editor.isActive("bulletList") ? "active" : ""}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().toggleBulletList().run()}
             >
-              <List size={18} strokeWidth={2} />
+              <List size={16} strokeWidth={2} />
             </button>
 
             <button
               type="button"
+              className={`btn-icon-only ${editor.isActive("orderedList") ? "active" : ""}`}
               title="Numbered List"
               aria-label="Numbered List"
-              className={editor.isActive("orderedList") ? "active" : ""}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
             >
-              <ListOrdered size={18} strokeWidth={2} />
+              <ListOrdered size={16} strokeWidth={2} />
             </button>
           </div>
 
@@ -1028,32 +1033,35 @@ function App() {
           <div className="toolbar-group">
             <button
               type="button"
-              title="Insert Question"
+              className="btn-with-label btn-action-accent"
+              title="Insert Question Block"
               aria-label="Insert Question"
               onMouseDown={(e) => e.preventDefault()}
               onClick={insertQuestionBlock}
             >
-              <HelpCircle size={18} strokeWidth={2} />
+              <HelpCircle size={16} strokeWidth={2} /> <span>MCQ Block</span>
             </button>
 
             <button
               type="button"
+              className="btn-with-label btn-action-accent"
               title="Insert Image"
               aria-label="Insert Image"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => fileInputRef.current?.click()}
             >
-              <ImageIcon size={18} strokeWidth={2} />
+              <ImageIcon size={16} strokeWidth={2} /> <span>Image</span>
             </button>
 
             <button
               type="button"
+              className="btn-with-label btn-action-accent"
               title="Insert Equation"
               aria-label="Insert Equation"
               onMouseDown={(e) => e.preventDefault()}
               onClick={openNewMathModal}
             >
-              <Sigma size={18} strokeWidth={2} />
+              <Sigma size={16} strokeWidth={2} /> <span>Equation</span>
             </button>
           </div>
 
@@ -1062,12 +1070,13 @@ function App() {
           <div className="toolbar-group">
             <button
               type="button"
+              className="btn-icon-only"
               title="Clear Formatting"
               aria-label="Clear Formatting"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => editor.chain().focus().unsetAllMarks().run()}
             >
-              <RemoveFormatting size={18} strokeWidth={2} />
+              <RemoveFormatting size={16} strokeWidth={2} />
             </button>
           </div>
         </div>
