@@ -1,3 +1,5 @@
+import type { ExamMetadata } from "../types/examMetadata";
+
 export interface PrintSettings {
   paperSize: "A4";
   orientation: "portrait" | "landscape";
@@ -8,19 +10,23 @@ export interface PrintSettings {
   showPageNumbers: boolean;
 }
 
-export interface ExamHeaderData {
-  instituteName?: string;
-  examTitle?: string;
-  subject?: string;
-  standardClass?: string;
-  date?: string;
-  timeAllowed?: string;
-  totalMarks?: string;
+/** Loose representation of a Tiptap/ProseMirror JSON node. */
+export interface PrintNode {
+  type?: string;
+  attrs?: Record<string, unknown>;
+  content?: PrintNode[];
+  text?: string;
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
+}
+
+export interface DocumentJson {
+  type?: string;
+  content?: PrintNode[];
 }
 
 export interface PrintDocumentProps {
-  content: any; // Tiptap JSON document
+  content: DocumentJson;
   title?: string;
   settings?: PrintSettings;
-  headerData?: ExamHeaderData;
+  metadata: ExamMetadata;
 }

@@ -24,8 +24,9 @@ import {
   FolderOpen,
   Save,
   FileDown,
-  Clock,
   Printer,
+  Sliders,
+  Clock,
 } from "lucide-react";
 
 import {
@@ -40,12 +41,19 @@ import { ResizableImage } from "./ResizableImage";
 import { MathNode } from "./MathNode";
 import { MathEditorModal } from "./MathEditorModal";
 import { PrintPreviewModal } from "./print/PrintPreviewModal";
+import { ExamSettingsModal } from "./components/ExamSettingsModal";
+import { DEFAULT_EXAM_METADATA } from "./types/examMetadata";
+import type { ExamMetadata } from "./types/examMetadata";
+import { migrateDocument } from "./utils/documentMigration";
 import type { RecentFileItem } from "./electron.d";
 
 import "./index.css";
 
 const fonts = ["Normal", "KAP110", "KAP111", "KAP112", "KAP122"];
 const fontSizes = [12, 14, 16, 18, 20, 24, 28, 32, 36];
+
+const getErrorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : "Unknown error";
 
 const FontMark = Mark.create({
   name: "fontFamily",
@@ -131,6 +139,8 @@ function App() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState<boolean>(false);
+  const [examMetadata, setExamMetadata] = useState<ExamMetadata>(DEFAULT_EXAM_METADATA);
+  const [isExamSettingsOpen, setIsExamSettingsOpen] = useState<boolean>(false);
 
   // Math Modal States
   const [isMathModalOpen, setIsMathModalOpen] = useState(false);
@@ -300,10 +310,11 @@ function App() {
       const title = targetPath.split(/[/\\]/).pop()?.replace(/\.qbank$/i, "") || docTitle;
       const docPayload = {
         format: "question-bank",
-        version: 1,
+        version: 2,
         title,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        metadata: examMetadata,
         content: editor.getJSON(),
       };
 
@@ -321,14 +332,14 @@ function App() {
           setRecentFiles(updatedRecents);
           return true;
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Save error:", err);
         setAutoSaveStatus("error");
-        showToast(`Save failed: ${err.message || "Unknown error"}`);
+        showToast(`Save failed: ${getErrorMessage(err)}`);
       }
       return false;
     },
-    [editor, docTitle, showToast]
+    [editor, docTitle, examMetadata, showToast]
   );
 
   const handleSaveAs = useCallback(async (): Promise<boolean> => {
@@ -338,9 +349,9 @@ function App() {
       if (selectedPath) {
         return await saveDocumentContent(selectedPath);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Save As error:", err);
-      showToast(`Save As failed: ${err.message || "Unknown error"}`);
+      showToast(`Save As failed: ${getErrorMessage(err)}`);
     }
     return false;
   }, [docTitle, saveDocumentContent, showToast]);
@@ -362,13 +373,17 @@ function App() {
           alert("Unable to open this file.\n\nThe selected file is not a valid Question Bank document.");
           return;
         }
-        editor.commands.setContent(parsed.content);
+
+        const migrated = migrateDocument(parsed);
+
+        editor.commands.setContent(migrated.content);
+        setExamMetadata(migrated.metadata);
         setFilePath(targetPath);
-        const name = targetPath.split(/[/\\]/).pop()?.replace(/\.qbank$/i, "") || parsed.title || "Untitled Document";
+        const name = targetPath.split(/[/\\]/).pop()?.replace(/\.qbank$/i, "") || migrated.title || "Untitled Document";
         setDocTitle(name);
         setIsDirty(false);
         setAutoSaveStatus("idle");
-      } catch (err: any) {
+      } catch (err) {
         console.error("Parse document error:", err);
         alert("Unable to open this file.\n\nFailed to parse Question Bank document JSON structure.");
       }
@@ -395,9 +410,9 @@ function App() {
           const updatedRecents = await window.electronAPI.getRecentFiles();
           setRecentFiles(updatedRecents);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Open file path error:", err);
-        showToast(`Failed to open file: ${err.message || "File not found"}`);
+        showToast(`Failed to open file: ${getErrorMessage(err)}`);
       }
     },
     [isDirty, handleSave, handleOpenContent, showToast]
@@ -421,9 +436,9 @@ function App() {
         const updatedRecents = await window.electronAPI.getRecentFiles();
         setRecentFiles(updatedRecents);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Open dialog error:", err);
-      showToast(`Open failed: ${err.message || "Unknown error"}`);
+      showToast(`Open failed: ${getErrorMessage(err)}`);
     }
   }, [isDirty, handleSave, handleOpenContent, showToast]);
 
@@ -505,8 +520,12 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSave, handleSaveAs, handleNew, handleOpen]);
 
-  const handleMathSubmit = (latex: string, displayMode: boolean) => {
-    if (!editor) return;
+  const handleSaveExamMetadata = useCallback((updatedMetadata: ExamMetadata) => {
+    setExamMetadata(updatedMetadata);
+    setIsDirty(true);
+  }, []);
+
+  const handleMathSubmit = (latex: string, displayMode: boolean) => {    if (!editor) return;
 
     if (mathUpdateCallback) {
       mathUpdateCallback(latex, displayMode);
@@ -810,6 +829,14 @@ function App() {
             </button>
             <button
               type="button"
+              className="btn-with-label"
+              title="Configure Exam Paper Header & Sections"
+              onClick={() => setIsExamSettingsOpen(true)}
+            >
+              <Sliders size={15} strokeWidth={2} /> <span>Exam Settings</span>
+            </button>
+            <button
+              type="button"
               className="btn-with-label btn-action-accent"
               title="Print Preview & PDF Export"
               onClick={() => setIsPrintPreviewOpen(true)}
@@ -1103,11 +1130,21 @@ function App() {
         onSubmit={handleMathSubmit}
       />
 
+      {isExamSettingsOpen && (
+        <ExamSettingsModal
+          isOpen
+          onClose={() => setIsExamSettingsOpen(false)}
+          metadata={examMetadata}
+          onSave={handleSaveExamMetadata}
+        />
+      )}
+
       <PrintPreviewModal
         isOpen={isPrintPreviewOpen}
         onClose={() => setIsPrintPreviewOpen(false)}
         documentJSON={editor?.getJSON() || {}}
         documentTitle={docTitle}
+        metadata={examMetadata}
       />
     </div>
   );

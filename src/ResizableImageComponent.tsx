@@ -1,21 +1,9 @@
 import React, { useRef, useState } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
+import type { ReactNodeViewProps } from "@tiptap/react";
 import { AlignLeft, AlignCenter, AlignRight, Trash2 } from "lucide-react";
 
-interface ImageNodeViewProps {
-  node: {
-    attrs: {
-      src: string;
-      alt?: string;
-      width?: string;
-      height?: string;
-      alignment?: "left" | "center" | "right";
-    };
-  };
-  updateAttributes: (attrs: Record<string, unknown>) => void;
-  deleteNode: () => void;
-  selected: boolean;
-}
+type ImageNodeViewProps = ReactNodeViewProps<HTMLElement>;
 
 export const ResizableImageComponent: React.FC<ImageNodeViewProps> = ({
   node,

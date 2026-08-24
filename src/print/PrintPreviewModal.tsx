@@ -1,20 +1,45 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { PrintDocument } from "./PrintDocument";
-import type { PrintSettings, ExamHeaderData } from "./types";
+import type { DocumentJson, PrintSettings } from "./types";
+import type { ExamMetadata } from "../types/examMetadata";
 import {
   Printer,
   FileDown,
   X,
   ZoomIn,
   ZoomOut,
-  Sliders,
 } from "lucide-react";
+import katexCss from "katex/dist/katex.min.css?raw";
+import kap110Font from "../assets/fonts/kap110.ttf?inline";
+import kap111Font from "../assets/fonts/kap111.ttf?inline";
+import kap112Font from "../assets/fonts/kap112.ttf?inline";
+import kap122Font from "../assets/fonts/kap122.ttf?inline";
+
+const KAP_FONT_FACES = `
+  @font-face { font-family: "KAP110"; src: url("${kap110Font}") format("truetype"); }
+  @font-face { font-family: "KAP111"; src: url("${kap111Font}") format("truetype"); }
+  @font-face { font-family: "KAP112"; src: url("${kap112Font}") format("truetype"); }
+  @font-face { font-family: "KAP122"; src: url("${kap122Font}") format("truetype"); }
+`;
+
+const MM_TO_PX = 96 / 25.4;
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+const getErrorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : "Unknown error";
 
 interface PrintPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  documentJSON: any;
+  documentJSON: DocumentJson;
   documentTitle: string;
+  metadata: ExamMetadata;
 }
 
 export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
@@ -22,10 +47,11 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   onClose,
   documentJSON,
   documentTitle,
+  metadata,
 }) => {
   const [zoom, setZoom] = useState<number>(100);
   const [isExporting, setIsExporting] = useState<boolean>(false);
-  const [settings, setSettings] = useState<PrintSettings>({
+  const [settings] = useState<PrintSettings>({
     paperSize: "A4",
     orientation: "portrait",
     marginTop: 15,
@@ -35,16 +61,142 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
     showPageNumbers: true,
   });
 
-  const [headerData, setHeaderData] = useState<ExamHeaderData>({
-    instituteName: "Question Bank Exam Paper",
-    examTitle: "Unit Test / Final Assessment",
-    subject: "General",
-    standardClass: "Std 10",
-    timeAllowed: "2 Hours",
-    totalMarks: "50",
-  });
-
   const printContainerRef = useRef<HTMLDivElement>(null);
+  const pristineHtmlRef = useRef<string | null>(null);
+  const pristineKeyRef = useRef<string>("");
+
+  function countQuestions(body: HTMLElement): number {
+    return body.querySelectorAll(".print-question-block").length;
+  }
+
+  function appendFooter(page: HTMLElement, pageNumber: number, totalPages: number): void {
+    if (!settings.showPageNumbers) return;
+    const footer = document.createElement("div");
+    footer.className = "print-page-footer";
+    footer.innerHTML = `<span>${escapeHtml(documentTitle)}</span><span>Page ${pageNumber} of ${totalPages}</span>`;
+    page.appendChild(footer);
+  }
+
+  /**
+   * Splits the rendered single-page document into real A4 pages.
+   * Measures each top-level node of the document body and moves
+   * overflowing nodes onto new .print-paper-page elements, keeping
+   * question counter numbering continuous across pages and adding a
+   * "Page X of Y" footer on every page.
+   */
+  useEffect(() => {
+    if (!isOpen) return;
+    const root = printContainerRef.current;
+    if (!root) return;
+
+    let cancelled = false;
+
+    const paginate = async () => {
+      // Wait for custom fonts and images so height measurements are accurate
+      try {
+        await document.fonts.ready;
+      } catch {
+        /* ignore */
+      }
+      const images = Array.from(root.querySelectorAll("img"));
+      await Promise.all(
+        images.map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete) {
+                resolve();
+              } else {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+              }
+            })
+        )
+      );
+      if (cancelled) return;
+
+      const containerEl =
+        root.querySelector<HTMLElement>(".print-paper-container") ?? root;
+
+      // Capture the untouched React-rendered page once per content change
+      const contentKey = JSON.stringify({ documentJSON, settings, metadata });
+      const firstRenderedPage =
+        containerEl.querySelector<HTMLElement>(".print-paper-page");
+      if (!firstRenderedPage) return;
+      if (pristineHtmlRef.current === null || pristineKeyRef.current !== contentKey) {
+        pristineHtmlRef.current = firstRenderedPage.innerHTML;
+        pristineKeyRef.current = contentKey;
+      }
+
+      // Rebuild from the pristine snapshot (previous runs may have mutated DOM)
+      containerEl.innerHTML = "";
+      const pageEl = document.createElement("div");
+      pageEl.className = "print-paper-page last-page";
+      pageEl.style.paddingTop = `${settings.marginTop}mm`;
+      pageEl.style.paddingRight = `${settings.marginRight}mm`;
+      pageEl.style.paddingBottom = `${settings.marginBottom}mm`;
+      pageEl.style.paddingLeft = `${settings.marginLeft}mm`;
+      containerEl.appendChild(pageEl);
+      pageEl.innerHTML = pristineHtmlRef.current;
+
+      const bodyEl = pageEl.querySelector<HTMLElement>(".print-document-body");
+      if (!bodyEl) return;
+      pageEl.querySelectorAll(".print-page-footer").forEach((f) => f.remove());
+
+      // Usable content height for one A4 page (footer strip reserved)
+      const pageCs = getComputedStyle(pageEl);
+      const padTop = parseFloat(pageCs.paddingTop) || 0;
+      const padBottom = parseFloat(pageCs.paddingBottom) || 0;
+      const usableHeight = pageEl.offsetHeight - padTop - padBottom - 14 * MM_TO_PX;
+
+      const items = Array.from(bodyEl.children) as HTMLElement[];
+      if (items.length === 0) {
+        appendFooter(pageEl, 1, 1);
+        return;
+      }
+
+      const pages: HTMLElement[] = [pageEl];
+      let currentBody = bodyEl;
+      let placedQuestions = 0;
+      bodyEl.style.counterReset = "printQuestionCounter 0";
+      const limitY = pageEl.getBoundingClientRect().top + padTop + usableHeight;
+
+      for (const item of items) {
+        currentBody.appendChild(item);
+        const overflow = item.getBoundingClientRect().bottom > limitY;
+
+        if (overflow && currentBody.children.length > 1) {
+          placedQuestions += countQuestions(currentBody);
+          currentBody.removeChild(item);
+
+          const nextPage = document.createElement("div");
+          nextPage.className = "print-paper-page";
+          nextPage.style.paddingTop = `${settings.marginTop}mm`;
+          nextPage.style.paddingRight = `${settings.marginRight}mm`;
+          nextPage.style.paddingBottom = `${settings.marginBottom}mm`;
+          nextPage.style.paddingLeft = `${settings.marginLeft}mm`;
+
+          const nextBody = document.createElement("div");
+          nextBody.className = "print-document-body";
+          nextBody.style.counterReset = `printQuestionCounter ${placedQuestions}`;
+          nextPage.appendChild(nextBody);
+          nextBody.appendChild(item);
+          containerEl.appendChild(nextPage);
+
+          pages.push(nextPage);
+          currentBody = nextBody;
+        }
+      }
+
+      pages.forEach((page, index) => appendFooter(page, index + 1, pages.length));
+    };
+
+    paginate();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, documentJSON, settings, metadata, documentTitle]);
 
   if (!isOpen) return null;
 
@@ -65,8 +217,10 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>${documentTitle}</title>
-          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css" />
+          <title>${escapeHtml(documentTitle)}</title>
+          <style>
+            ${katexCss}
+          </style>
           <style>
             @page {
               size: A4 portrait;
@@ -77,17 +231,28 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               padding: 0;
               background: #ffffff;
             }
-            /* Embedded KAP Fonts for PDF window */
-            @font-face { font-family: "KAP110"; src: url("fonts/KAP110.ttf") format("truetype"); }
-            @font-face { font-family: "KAP111"; src: url("fonts/KAP111.ttf") format("truetype"); }
-            @font-face { font-family: "KAP112"; src: url("fonts/KAP112.ttf") format("truetype"); }
-            @font-face { font-family: "KAP122"; src: url("fonts/KAP122.ttf") format("truetype"); }
+            /* Embedded KAP Fonts (base64, works offline & inside data: URL PDF window) */
+            ${KAP_FONT_FACES}
 
             .print-paper-container { background: #fff; font-family: "Times New Roman", Times, serif; font-size: 14pt; }
             .print-paper-page { width: 210mm; min-height: 297mm; padding: ${settings.marginTop}mm ${settings.marginRight}mm ${settings.marginBottom}mm ${settings.marginLeft}mm; box-sizing: border-box; margin: 0 auto; page-break-after: always; position: relative; }
-            .print-exam-header { border-bottom: 2px solid #1e293b; padding-bottom: 12px; margin-bottom: 20px; text-align: center; }
-            .print-exam-header h1 { font-size: 20pt; font-weight: 700; margin: 0 0 6px 0; text-transform: uppercase; }
-            .print-exam-header .exam-sub-info { display: flex; justify-content: space-between; font-size: 11pt; font-weight: 600; color: #334155; margin-top: 8px; }
+            .print-paper-page.last-page { page-break-after: auto; }
+            .print-exam-header { border-bottom: 2px solid #1e293b; padding-bottom: 12px; margin-bottom: 16px; text-align: center; }
+            .print-exam-header h1 { font-size: 20pt; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; }
+            .print-exam-subtitle { font-size: 14pt; font-weight: 600; color: #334155; margin: 2px 0 8px 0; }
+            .print-logo-wrapper { margin-bottom: 8px; }
+            .print-logo-wrapper img { max-height: 120px; height: auto; }
+            .print-exam-header .exam-sub-info { display: flex; justify-content: space-between; font-size: 11pt; font-weight: 600; color: #334155; margin-top: 8px; flex-wrap: wrap; gap: 8px; }
+            
+            .print-instructions-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px 14px; margin-bottom: 18px; background: #f8fafc; font-size: 11pt; }
+            .instructions-heading { font-size: 11pt; font-weight: 700; margin: 0 0 4px 0; text-transform: uppercase; }
+            .print-instructions-box ul { margin: 0; padding-left: 20px; }
+            .print-instructions-box li { margin-bottom: 2px; }
+
+            .print-section-divider { border-top: 2px solid #0f172a; border-bottom: 1px solid #94a3b8; padding: 6px 0; margin: 20px 0 14px 0; }
+            .print-section-header-bar { display: flex; justify-content: space-between; font-weight: 700; font-size: 13pt; text-transform: uppercase; }
+            .print-section-desc { font-size: 11pt; font-style: italic; color: #475569; margin: 4px 0 0 0; }
+
             .print-document-body { counter-reset: printQuestionCounter; }
             .print-question-block { counter-increment: printQuestionCounter; margin-bottom: 18px; page-break-inside: avoid; break-inside: avoid; }
             .print-question-header { font-weight: 700; font-size: 14pt; margin-bottom: 6px; }
@@ -130,9 +295,9 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
       } else {
         alert("PDF export is supported in the desktop Electron version.");
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("PDF Export error:", err);
-      alert(`Unable to export PDF: ${err.message || "Unknown error"}`);
+      alert(`Unable to export PDF: ${getErrorMessage(err)}`);
     } finally {
       setIsExporting(false);
     }
@@ -146,9 +311,9 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
       } else {
         window.print();
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Native Print error:", err);
-      alert(`Unable to print document: ${err.message || "Unknown error"}`);
+      alert(`Unable to print document: ${getErrorMessage(err)}`);
     }
   };
 
@@ -224,7 +389,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 content={documentJSON}
                 title={documentTitle}
                 settings={settings}
-                headerData={headerData}
+                metadata={metadata}
               />
             </div>
           </div>

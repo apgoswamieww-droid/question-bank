@@ -2,7 +2,7 @@ import React from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import "./print.css";
-import type { PrintDocumentProps } from "./types";
+import type { PrintDocumentProps, PrintNode } from "./types";
 
 export const PrintDocument: React.FC<PrintDocumentProps> = ({
   content,
@@ -16,7 +16,7 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
     marginLeft: 15,
     showPageNumbers: true,
   },
-  headerData,
+  metadata,
 }) => {
   if (!content || !content.content) {
     return (
@@ -26,10 +26,10 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
     );
   }
 
-  const renderMarks = (text: string, marks?: any[]) => {
+  const renderMarks = (text: string, marks?: PrintNode["marks"]) => {
     if (!marks || marks.length === 0) return text;
 
-    let style: React.CSSProperties = {};
+    const style: React.CSSProperties = {};
     let isBold = false;
     let isItalic = false;
     let isUnderline = false;
@@ -37,10 +37,10 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
     marks.forEach((m) => {
       if (m.type === "fontFamily" && m.attrs) {
         if (m.attrs.fontFamily) {
-          style.fontFamily = `"${m.attrs.fontFamily}", system-ui, sans-serif`;
+          style.fontFamily = `"${String(m.attrs.fontFamily)}", system-ui, sans-serif`;
         }
         if (m.attrs.fontSize) {
-          style.fontSize = m.attrs.fontSize;
+          style.fontSize = String(m.attrs.fontSize);
         }
       }
       if (m.type === "bold") isBold = true;
@@ -60,20 +60,24 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
     return element;
   };
 
-  const renderNodeChildren = (children?: any[]): React.ReactNode[] => {
+  const renderNodeChildren = (children?: PrintNode[]): React.ReactNode[] => {
     if (!children) return [];
     return children.map((child, index) => renderNode(child, index));
   };
 
-  const renderNode = (node: any, key: number | string): React.ReactNode => {
+  const renderNode = (node: PrintNode, key: number | string): React.ReactNode => {
     if (!node) return null;
 
     switch (node.type) {
       case "text":
-        return <React.Fragment key={key}>{renderMarks(node.text, node.marks)}</React.Fragment>;
+        return (
+          <React.Fragment key={key}>
+            {renderMarks(node.text ?? "", node.marks)}
+          </React.Fragment>
+        );
 
       case "paragraph": {
-        const textAlign = node.attrs?.textAlign || "left";
+        const textAlign = (node.attrs?.textAlign as React.CSSProperties["textAlign"] | undefined) || "left";
         return (
           <p key={key} style={{ textAlign }}>
             {renderNodeChildren(node.content)}
@@ -82,9 +86,9 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
       }
 
       case "heading": {
-        const level = node.attrs?.level || 1;
-        const textAlign = node.attrs?.textAlign || "left";
-        const Tag = `h${level}` as keyof JSX.IntrinsicElements;
+        const level = Math.min(Math.max(Number(node.attrs?.level) || 1, 1), 6);
+        const textAlign = (node.attrs?.textAlign as React.CSSProperties["textAlign"] | undefined) || "left";
+        const Tag = `h${level}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
         return (
           <Tag key={key} style={{ textAlign }}>
             {renderNodeChildren(node.content)}
@@ -108,7 +112,7 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
         return <hr key={key} style={{ margin: "16px 0", border: "0.5px solid #cbd5e1" }} />;
 
       case "mathNode": {
-        const latex = node.attrs?.latex || "";
+        const latex = typeof node.attrs?.latex === "string" ? node.attrs.latex : "";
         const displayMode = !!node.attrs?.displayMode;
 
         try {
@@ -124,7 +128,7 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
               dangerouslySetInnerHTML={{ __html: html }}
             />
           );
-        } catch (err) {
+        } catch {
           return (
             <span key={key} className="print-math-inline" style={{ color: "red" }}>
               [{latex}]
@@ -134,10 +138,12 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
       }
 
       case "resizableImage": {
-        const src = node.attrs?.src;
-        const alt = node.attrs?.alt || "";
-        const width = node.attrs?.width || "300px";
-        const alignment = node.attrs?.alignment || "center";
+        const src = typeof node.attrs?.src === "string" ? node.attrs.src : undefined;
+        const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "";
+        const width =
+          typeof node.attrs?.width === "string" ? node.attrs.width : "300px";
+        const alignment =
+          typeof node.attrs?.alignment === "string" ? node.attrs.alignment : "center";
 
         if (!src) return null;
 
@@ -150,9 +156,9 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
 
       case "questionBlock": {
         const children = node.content || [];
-        const questionTextNode = children.find((c: any) => c.type === "questionText");
-        const optionsNodes = children.filter((c: any) => c.type === "questionOption");
-        const footerNode = children.find((c: any) => c.type === "questionFooter");
+        const questionTextNode = children.find((c) => c.type === "questionText");
+        const optionsNodes = children.filter((c) => c.type === "questionOption");
+        const footerNode = children.find((c) => c.type === "questionFooter");
 
         return (
           <div key={key} className="print-question-block">
@@ -163,8 +169,10 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
 
             {optionsNodes.length > 0 && (
               <div className="print-question-options">
-                {optionsNodes.map((optNode: any, optIdx: number) => {
-                  const label = optNode.attrs?.label || String.fromCharCode(65 + optIdx);
+                {optionsNodes.map((optNode, optIdx) => {
+                  const label =
+                    (optNode.attrs?.label as string | undefined) ||
+                    String.fromCharCode(65 + optIdx);
                   return (
                     <div key={optIdx} className="print-question-option">
                       <span className="print-option-label">({label})</span>
@@ -179,7 +187,7 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
 
             {footerNode && (
               <div className="print-question-footer">
-                {footerNode.content?.map((fChild: any, fIdx: number) => {
+                {footerNode.content?.map((fChild, fIdx) => {
                   if (fChild.type === "questionAnswer") {
                     return (
                       <div key={fIdx} className="print-footer-item">
@@ -222,21 +230,68 @@ export const PrintDocument: React.FC<PrintDocumentProps> = ({
   return (
     <div className="print-paper-container">
       <div className="print-paper-page" style={pageStyle}>
+        {/* Exam Header Block */}
         <div className="print-exam-header">
-          <h1>{headerData?.instituteName || "Question Paper"}</h1>
-          {headerData?.examTitle && (
-            <h2 style={{ fontSize: "14pt", margin: "4px 0", color: "#334155" }}>
-              {headerData.examTitle}
-            </h2>
+          {metadata?.logo?.src && (
+            <div
+              className="print-logo-wrapper"
+              style={{ textAlign: metadata.logo.alignment }}
+            >
+              <img
+                src={metadata.logo.src}
+                alt="Institute Logo"
+                style={{ width: `${metadata.logo.width}px`, maxHeight: "120px" }}
+              />
+            </div>
           )}
+
+          <h1>{metadata?.instituteName || "Question Bank Paper"}</h1>
+          {metadata?.examTitle && (
+            <h2 className="print-exam-subtitle">{metadata.examTitle}</h2>
+          )}
+
           <div className="exam-sub-info">
-            <span>Subject: {headerData?.subject || "General"}</span>
-            <span>Standard/Class: {headerData?.standardClass || "N/A"}</span>
-            <span>Time: {headerData?.timeAllowed || "2 Hours"}</span>
-            <span>Total Marks: {headerData?.totalMarks || "100"}</span>
+            <span>Subject: {metadata?.subject || "General"}</span>
+            <span>Class: {metadata?.standard || "N/A"}</span>
+            {metadata?.academicYear && <span>Year: {metadata.academicYear}</span>}
+            <span>Date: {metadata?.date || "N/A"}</span>
+            <span>Time: {metadata?.timeAllowed || "2 Hours"}</span>
+            <span>Total Marks: {metadata?.totalMarks ?? "N/A"}</span>
           </div>
         </div>
 
+        {/* General Instructions Section */}
+        {metadata?.instructions && metadata.instructions.length > 0 && (
+          <div className="print-instructions-box">
+            <h3 className="instructions-heading">General Instructions:</h3>
+            <ul>
+              {metadata.instructions.map((inst, idx) => (
+                <li key={idx}>{inst}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Sections Overview (If Configured) */}
+        {metadata?.sections && metadata.sections.length > 0 && (
+          <div className="print-sections-container">
+            {metadata.sections.map((sec) => (
+              <div key={sec.id} className="print-section-divider">
+                <div className="print-section-header-bar">
+                  <span className="print-section-title">{sec.title}</span>
+                  {sec.marks !== null && sec.marks !== undefined && (
+                    <span className="print-section-marks">[{sec.marks} Marks]</span>
+                  )}
+                </div>
+                {sec.description && (
+                  <p className="print-section-desc">{sec.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Document Questions Body */}
         <div className="print-document-body">
           {renderNodeChildren(content.content)}
         </div>
