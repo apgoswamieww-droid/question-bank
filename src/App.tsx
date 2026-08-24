@@ -20,6 +20,11 @@ import {
   HelpCircle,
   Image as ImageIcon,
   Sigma,
+  FilePlus,
+  FolderOpen,
+  Save,
+  FileDown,
+  Clock,
 } from "lucide-react";
 
 import {
@@ -33,6 +38,7 @@ import {
 import { ResizableImage } from "./ResizableImage";
 import { MathNode } from "./MathNode";
 import { MathEditorModal } from "./MathEditorModal";
+import type { RecentFileItem } from "./electron.d";
 
 import "./index.css";
 
@@ -114,6 +120,15 @@ function App() {
   const [selectedFontSize, setSelectedFontSize] = useState("18");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Document Management State
+  const [filePath, setFilePath] = useState<string | null>(null);
+  const [docTitle, setDocTitle] = useState<string>("Untitled Question Paper");
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [recentFiles, setRecentFiles] = useState<RecentFileItem[]>([]);
+  const [isRecentOpen, setIsRecentOpen] = useState<boolean>(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   // Math Modal States
   const [isMathModalOpen, setIsMathModalOpen] = useState(false);
   const [mathInitialLatex, setMathInitialLatex] = useState("");
@@ -126,6 +141,13 @@ function App() {
     from: number;
     to: number;
   } | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 4000);
+  }, []);
 
   const handleOpenMathEditor = useCallback(
     (
@@ -230,9 +252,22 @@ function App() {
       <p><span style="font-family: KAP112; font-size: 24px;">VF5[,F VF5[,F</span></p>
       <p>English text: Calculate the value of X when x² + 2x + 1 = 0.</p>
     `,
+
+    onUpdate: () => {
+      setIsDirty(true);
+    },
   });
 
-  // Update dropdown values to reflect the current cursor/selection state
+  // Load recent files on start
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.getRecentFiles().then((list) => {
+        if (Array.isArray(list)) setRecentFiles(list);
+      }).catch(err => console.error("Error fetching recent files:", err));
+    }
+  }, []);
+
+  // Update dropdown values to reflect current cursor/selection state
   useEffect(() => {
     if (!editor) return;
 
@@ -248,19 +283,228 @@ function App() {
     updateFromEditor();
 
     editor.on("selectionUpdate", updateFromEditor);
-    editor.on("transaction", updateFromEditor);
 
     return () => {
       editor.off("selectionUpdate", updateFromEditor);
-      editor.off("transaction", updateFromEditor);
     };
   }, [editor]);
 
-  if (!editor) {
-    return null;
-  }
+  // Save Document Core Logic
+  const saveDocumentContent = useCallback(
+    async (targetPath: string): Promise<boolean> => {
+      if (!editor || !window.electronAPI) return false;
+
+      const title = targetPath.split(/[/\\]/).pop()?.replace(/\.qbank$/i, "") || docTitle;
+      const docPayload = {
+        format: "question-bank",
+        version: 1,
+        title,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        content: editor.getJSON(),
+      };
+
+      try {
+        const result = await window.electronAPI.writeFile(
+          targetPath,
+          JSON.stringify(docPayload, null, 2)
+        );
+        if (result && result.filePath) {
+          setFilePath(result.filePath);
+          setDocTitle(title);
+          setIsDirty(false);
+          setAutoSaveStatus("saved");
+          const updatedRecents = await window.electronAPI.getRecentFiles();
+          setRecentFiles(updatedRecents);
+          return true;
+        }
+      } catch (err: any) {
+        console.error("Save error:", err);
+        setAutoSaveStatus("error");
+        showToast(`Save failed: ${err.message || "Unknown error"}`);
+      }
+      return false;
+    },
+    [editor, docTitle, showToast]
+  );
+
+  const handleSaveAs = useCallback(async (): Promise<boolean> => {
+    if (!window.electronAPI) return false;
+    try {
+      const selectedPath = await window.electronAPI.saveFileDialog(docTitle);
+      if (selectedPath) {
+        return await saveDocumentContent(selectedPath);
+      }
+    } catch (err: any) {
+      console.error("Save As error:", err);
+      showToast(`Save As failed: ${err.message || "Unknown error"}`);
+    }
+    return false;
+  }, [docTitle, saveDocumentContent, showToast]);
+
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (filePath) {
+      return await saveDocumentContent(filePath);
+    } else {
+      return await handleSaveAs();
+    }
+  }, [filePath, saveDocumentContent, handleSaveAs]);
+
+  const handleOpenContent = useCallback(
+    (targetPath: string, jsonString: string) => {
+      if (!editor) return;
+      try {
+        const parsed = JSON.parse(jsonString);
+        if (parsed.format !== "question-bank" || !parsed.content) {
+          alert("Unable to open this file.\n\nThe selected file is not a valid Question Bank document.");
+          return;
+        }
+        editor.commands.setContent(parsed.content);
+        setFilePath(targetPath);
+        const name = targetPath.split(/[/\\]/).pop()?.replace(/\.qbank$/i, "") || parsed.title || "Untitled Document";
+        setDocTitle(name);
+        setIsDirty(false);
+        setAutoSaveStatus("idle");
+      } catch (err: any) {
+        console.error("Parse document error:", err);
+        alert("Unable to open this file.\n\nFailed to parse Question Bank document JSON structure.");
+      }
+    },
+    [editor]
+  );
+
+  const handleOpenPath = useCallback(
+    async (targetPath: string) => {
+      if (!window.electronAPI) return;
+      if (isDirty) {
+        const choice = await window.electronAPI.confirmClose(true);
+        if (choice === "cancel") return;
+        if (choice === "save") {
+          const saved = await handleSave();
+          if (!saved) return;
+        }
+      }
+
+      try {
+        const result = await window.electronAPI.readFile(targetPath);
+        if (result && result.content) {
+          handleOpenContent(result.filePath, result.content);
+          const updatedRecents = await window.electronAPI.getRecentFiles();
+          setRecentFiles(updatedRecents);
+        }
+      } catch (err: any) {
+        console.error("Open file path error:", err);
+        showToast(`Failed to open file: ${err.message || "File not found"}`);
+      }
+    },
+    [isDirty, handleSave, handleOpenContent, showToast]
+  );
+
+  const handleOpen = useCallback(async () => {
+    if (!window.electronAPI) return;
+    if (isDirty) {
+      const choice = await window.electronAPI.confirmClose(true);
+      if (choice === "cancel") return;
+      if (choice === "save") {
+        const saved = await handleSave();
+        if (!saved) return;
+      }
+    }
+
+    try {
+      const result = await window.electronAPI.openFileDialog();
+      if (result && result.filePath && result.content) {
+        handleOpenContent(result.filePath, result.content);
+        const updatedRecents = await window.electronAPI.getRecentFiles();
+        setRecentFiles(updatedRecents);
+      }
+    } catch (err: any) {
+      console.error("Open dialog error:", err);
+      showToast(`Open failed: ${err.message || "Unknown error"}`);
+    }
+  }, [isDirty, handleSave, handleOpenContent, showToast]);
+
+  const handleNew = useCallback(async () => {
+    if (!editor) return;
+    if (isDirty && window.electronAPI) {
+      const choice = await window.electronAPI.confirmClose(true);
+      if (choice === "cancel") return;
+      if (choice === "save") {
+        const saved = await handleSave();
+        if (!saved) return;
+      }
+    }
+
+    editor.commands.setContent("<p></p>");
+    setFilePath(null);
+    setDocTitle("Untitled Question Paper");
+    setIsDirty(false);
+    setAutoSaveStatus("idle");
+  }, [editor, isDirty, handleSave]);
+
+  // Auto-Save Timer (Every 30 Seconds)
+  useEffect(() => {
+    if (!filePath || !isDirty) return;
+
+    const timer = setInterval(() => {
+      setAutoSaveStatus("saving");
+      saveDocumentContent(filePath);
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, [filePath, isDirty, saveDocumentContent]);
+
+  // Window Close & Desktop Menu Actions
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    const unbindClose = window.electronAPI.onCloseRequested(async () => {
+      if (!isDirty) {
+        window.electronAPI?.confirmClose(false);
+      } else {
+        const choice = await window.electronAPI?.confirmClose(true);
+        if (choice === "save") {
+          const saved = await handleSave();
+          if (saved) {
+            window.electronAPI?.confirmClose(false);
+          }
+        }
+      }
+    });
+
+    return () => {
+      unbindClose();
+    };
+  }, [isDirty, handleSave]);
+
+  // Global Keyboard Shortcuts (Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === "s") {
+          e.preventDefault();
+          if (e.shiftKey) {
+            handleSaveAs();
+          } else {
+            handleSave();
+          }
+        } else if (e.key.toLowerCase() === "n" && !e.shiftKey) {
+          e.preventDefault();
+          handleNew();
+        } else if (e.key.toLowerCase() === "o" && !e.shiftKey) {
+          e.preventDefault();
+          handleOpen();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleSave, handleSaveAs, handleNew, handleOpen]);
 
   const handleMathSubmit = (latex: string, displayMode: boolean) => {
+    if (!editor) return;
+
     if (mathUpdateCallback) {
       mathUpdateCallback(latex, displayMode);
     } else {
@@ -358,7 +602,6 @@ function App() {
     }
   };
 
-
   const handleAlignment = (alignment: "left" | "center" | "right" | "justify") => {
     if (!editor) return;
 
@@ -386,21 +629,19 @@ function App() {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
-      if (editor) {
-        editor
-          .chain()
-          .focus()
-          .insertContent({
-            type: "resizableImage",
-            attrs: {
-              src: dataUrl,
-              alt: file.name,
-              width: "300px",
-              alignment: "center",
-            },
-          })
-          .run();
-      }
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({
+          type: "resizableImage",
+          attrs: {
+            src: dataUrl,
+            alt: file.name,
+            width: "300px",
+            alignment: "center",
+          },
+        })
+        .run();
     };
     reader.readAsDataURL(file);
 
@@ -492,7 +733,6 @@ function App() {
       ])
       .run();
 
-    // Move cursor to select the question text "Question text here"
     setTimeout(() => {
       const { state, dispatch } = editor.view;
       const { $from } = state.selection;
@@ -506,7 +746,7 @@ function App() {
       }
 
       if (qPos !== -1) {
-        const textPos = qPos + 3; // position inside questionText paragraph
+        const textPos = qPos + 3;
         const tr = state.tr.setSelection(
           TextSelection.create(state.doc, textPos, textPos + "Question text here".length)
         );
@@ -515,12 +755,32 @@ function App() {
     }, 10);
   };
 
+  if (!editor) {
+    return null;
+  }
+
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Question Bank</h1>
-        <span>Mixed Content Editor — POC</span>
+        <div className="header-left">
+          <h1>Question Bank</h1>
+          <div className="doc-title-badge">
+            <span className="doc-title">{docTitle}</span>
+            {isDirty && <span className="dirty-badge" title="Unsaved changes">*</span>}
+          </div>
+        </div>
+        <div className="header-right">
+          {autoSaveStatus === "saving" && <span className="autosave-tag saving">Auto-saving...</span>}
+          {autoSaveStatus === "saved" && <span className="autosave-tag saved">Auto-saved</span>}
+          {autoSaveStatus === "error" && <span className="autosave-tag error">Auto-save failed</span>}
+        </div>
       </header>
+
+      {toastMessage && (
+        <div className="toast-notification">
+          {toastMessage}
+        </div>
+      )}
 
       <main className="editor-wrapper">
         <input
@@ -530,6 +790,57 @@ function App() {
           style={{ display: "none" }}
           onChange={handleFileChange}
         />
+
+        <div className="toolbar doc-toolbar">
+          <div className="toolbar-group">
+            <button type="button" title="New Document (Ctrl+N)" onClick={handleNew}>
+              <FilePlus size={16} strokeWidth={2} /> <span>New</span>
+            </button>
+            <button type="button" title="Open Document (Ctrl+O)" onClick={handleOpen}>
+              <FolderOpen size={16} strokeWidth={2} /> <span>Open</span>
+            </button>
+            <button type="button" title="Save Document (Ctrl+S)" onClick={handleSave}>
+              <Save size={16} strokeWidth={2} /> <span>Save</span>
+            </button>
+            <button type="button" title="Save As... (Ctrl+Shift+S)" onClick={handleSaveAs}>
+              <FileDown size={16} strokeWidth={2} /> <span>Save As</span>
+            </button>
+          </div>
+
+          <div className="toolbar-separator" />
+
+          <div className="toolbar-group recent-files-container">
+            <button
+              type="button"
+              title="Recent Documents"
+              onClick={() => setIsRecentOpen((prev) => !prev)}
+            >
+              <Clock size={16} strokeWidth={2} /> <span>Recent</span>
+            </button>
+            {isRecentOpen && (
+              <div className="recent-dropdown">
+                {recentFiles.length === 0 ? (
+                  <div className="recent-item empty">No recent files</div>
+                ) : (
+                  recentFiles.map((file) => (
+                    <button
+                      key={file.path}
+                      className="recent-item"
+                      type="button"
+                      onClick={() => {
+                        setIsRecentOpen(false);
+                        handleOpenPath(file.path);
+                      }}
+                    >
+                      <span className="recent-name">{file.name}</span>
+                      <span className="recent-path">{file.path}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="toolbar">
           <div className="toolbar-group">
@@ -599,9 +910,8 @@ function App() {
             <select
               value={selectedFont}
               onMouseDown={saveSelection}
-              onChange={(e) => {
-                applyFont(e.target.value);
-              }}
+              onChange={(e) => applyFont(e.target.value)}
+
             >
               {fonts.map((font) => (
                 <option key={font} value={font}>
@@ -613,13 +923,12 @@ function App() {
             <select
               value={selectedFontSize}
               onMouseDown={saveSelection}
-              onChange={(e) => {
-                applyFontSize(e.target.value);
-              }}
+              onChange={(e) => applyFontSize(e.target.value)}
+
             >
               {fontSizes.map((size) => (
-                <option key={size} value={String(size)}>
-                  {size}
+                <option key={size} value={size}>
+                  {size}px
                 </option>
               ))}
             </select>
@@ -778,7 +1087,3 @@ function App() {
 }
 
 export default App;
-
-
-
-

@@ -612,6 +612,149 @@ body {
   cursor: not-allowed;
 }
 
+/* Document Management Styling */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: #1e293b;
+  color: #f8fafc;
+  border-bottom: 1px solid #334155;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-left h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.doc-title-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #334155;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.dirty-badge {
+  color: #f59e0b;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.autosave-tag {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.autosave-tag.saving {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.autosave-tag.saved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.autosave-tag.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.doc-toolbar {
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 4px 12px;
+}
+
+.doc-toolbar button span {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recent-files-container {
+  position: relative;
+}
+
+.recent-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  min-width: 260px;
+  max-width: 360px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.recent-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start !important;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+}
+
+.recent-item:hover {
+  background: #f8fafc;
+}
+
+.recent-item.empty {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 12px;
+  text-align: center;
+}
+
+.recent-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.recent-path {
+  font-size: 11px;
+  color: #64748b;
+  word-break: break-all;
+}
+
+.toast-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #1e293b;
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+}
+
+
 
 
 
