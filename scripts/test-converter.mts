@@ -20,6 +20,9 @@ import {
   getMappingStatus,
 } from "../src/converter/mappings";
 import type { FontMapping } from "../src/converter/types";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { KAP112_RULES } from "../src/converter/mappings/kap112";
 
 let passed = 0;
 let failed = 0;
@@ -162,6 +165,51 @@ if (!kap112Status.loaded) {
 }
 
 pendingCheck("KAP110/111/122 golden outputs", "mapping tables not yet supplied");
+
+// ---------------------------------------------------------------------------
+console.log("\n== Human-entered draft table (injected sandbox) ==\n");
+
+const casesPath = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  "..",
+  "mapping-data",
+  "kap112-cases.json"
+);
+if (!existsSync(casesPath)) {
+  pendingCheck("draft-table cases", "no mapping-data/kap112-cases.json yet");
+} else {
+  const draft = JSON.parse(readFileSync(casesPath, "utf8")) as {
+    font: string;
+    generatedAt: string;
+    cases: { unicode: string; expected: string }[];
+  };
+  // Inject the DRAFT rules with verified=true INSIDE THE SANDBOX ONLY.
+  // The shipped kap112.ts keeps verified:false — production stays locked.
+  __setMappingForTests({
+    font: "KAP112",
+    rules: KAP112_RULES,
+    verified: true,
+    source: `DRAFT human-entered (${draft.generatedAt}) - sandbox injection only`,
+  });
+  check("Draft rules present in module", KAP112_RULES.length > 0, true);
+  let casePass = 0;
+  let caseFail = 0;
+  for (const c of draft.cases) {
+    const res = convertGujaratiUnicodeToKap(c.unicode, "KAP112");
+    if (res.output === c.expected) {
+      casePass++;
+    } else {
+      caseFail++;
+      console.error(`FAIL  draft case '${c.unicode}' expected '${c.expected}' got '${res.output}'`);
+    }
+  }
+  check(`Draft cases ${casePass}/${draft.cases.length} pass`, caseFail, 0);
+
+  // Shipped registry must STILL refuse production conversion.
+  __resetMappingsForTests();
+  const shipped = convertGujaratiUnicodeToKap("\u0A97", "KAP112");
+  check("Shipped registry still refuses (verified:false)", shipped.mappingAvailable, false);
+}
 
 // ---------------------------------------------------------------------------
 console.log(`\nResults: ${passed} passed, ${failed} failed, ${pending} pending\n`);

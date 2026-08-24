@@ -384,6 +384,8 @@ def proof_pages(font_label: str, render_ttf: Path, glyph_map: dict[int, str],
                 "char_repr": char_repr(b),
                 "glyph_name": glyph_map.get(b),
                 "has_glyph": gi is not None, "section": kind,
+                "_row": r + 1, "_col": c + 1,
+                "_page_ref": page,
             })
         page.y += ((len(chunk) + cols - 1) // cols) * CELL_H + 20
         i += take
@@ -456,6 +458,14 @@ def generate_font_sheets(label: str, font_path: Path,
     pdf_path = out_dir / f"{label}_full.pdf"
     pdf_pages[0].save(pdf_path, format="PDF", save_all=True,
                       append_images=pdf_pages[1:], resolution=DPI)
+
+    # resolve cell page references to saved filenames
+    refmap = {id(pg): fname for fname, pg in saved}
+    for cell in cells:
+        pg = cell.pop("_page_ref")
+        cell["page"] = refmap[id(pg)]
+        cell["row"] = cell.pop("_row")
+        cell["col"] = cell.pop("_col")
 
     manifest["fonts"][label] = {
         "file": str(font_path.relative_to(ROOT)),
