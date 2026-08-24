@@ -1180,13 +1180,15 @@ function App() {
         <EditorContent editor={editor} />
       </main>
 
-      <MathEditorModal
-        isOpen={isMathModalOpen}
-        initialLatex={mathInitialLatex}
-        initialDisplayMode={mathInitialDisplayMode}
-        onClose={() => setIsMathModalOpen(false)}
-        onSubmit={handleMathSubmit}
-      />
+      {isMathModalOpen && (
+        <MathEditorModal
+          isOpen={isMathModalOpen}
+          initialLatex={mathInitialLatex}
+          initialDisplayMode={mathInitialDisplayMode}
+          onClose={() => setIsMathModalOpen(false)}
+          onSubmit={handleMathSubmit}
+        />
+      )}
 
       <GujaratiConverterModal
         isOpen={isConverterOpen}
