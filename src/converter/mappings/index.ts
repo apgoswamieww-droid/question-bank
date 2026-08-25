@@ -1,4 +1,4 @@
-import type { FontMapping, KapFont, MappingStatus, VerifiedSample } from "../types";
+import { KAP_FONTS, type KapFont, type ConversionRule, type FontMapping, type MappingStatus, type VerifiedSample } from "../types";
 import { validateAndSortRules } from "../validation";
 import { KAP110_RULES, KAP110_SAMPLES } from "./kap110";
 import { KAP111_RULES, KAP111_SAMPLES } from "./kap111";
@@ -17,36 +17,20 @@ interface RegistryEntry extends FontMapping {
   samples: VerifiedSample[];
 }
 
-const REGISTRY: Record<KapFont, RegistryEntry> = {
-  KAP110: {
-    font: "KAP110",
-    rules: KAP110_RULES,
-    verified: false,
-    source: "not provided yet",
-    samples: KAP110_SAMPLES,
-  },
-  KAP111: {
-    font: "KAP111",
-    rules: KAP111_RULES,
-    verified: false,
-    source: "not provided yet",
-    samples: KAP111_SAMPLES,
-  },
-  KAP112: {
-    font: "KAP112",
-    rules: KAP112_RULES,
-    verified: false,
-    source: "partial - 1 golden sample only (see kap112.ts)",
-    samples: KAP112_SAMPLES,
-  },
-  KAP122: {
-    font: "KAP122",
-    rules: KAP122_RULES,
-    verified: false,
-    source: "not provided yet",
-    samples: KAP122_SAMPLES,
-  },
+/** Per-font mapping data — add new font imports above and entry here. */
+const FONT_DATA: Record<KapFont, { rules: ConversionRule[]; samples: VerifiedSample[]; source: string }> = {
+  KAP110: { rules: KAP110_RULES, samples: KAP110_SAMPLES, source: "not provided yet" },
+  KAP111: { rules: KAP111_RULES, samples: KAP111_SAMPLES, source: "not provided yet" },
+  KAP112: { rules: KAP112_RULES, samples: KAP112_SAMPLES, source: "partial - 1 golden sample only (see kap112.ts)" },
+  KAP122: { rules: KAP122_RULES, samples: KAP122_SAMPLES, source: "not provided yet" },
 };
+
+const REGISTRY: Record<KapFont, RegistryEntry> = Object.fromEntries(
+  KAP_FONTS.map((font) => [
+    font,
+    { font, ...FONT_DATA[font], verified: false },
+  ]),
+) as Record<KapFont, RegistryEntry>;
 
 /** Cached sorted/validated view per font. */
 const cache = new Map<KapFont, MappingStatus>();
@@ -95,18 +79,8 @@ export function __setMappingForTests(entry: FontMapping & { samples?: VerifiedSa
 
 /** Restore the shipped (unverified) registry state after tests mutated it. */
 export function __resetMappingsForTests(): void {
-  const defaults: Record<KapFont, { rules: typeof KAP110_RULES; samples: VerifiedSample[]; source: string }> = {
-    KAP110: { rules: KAP110_RULES, samples: KAP110_SAMPLES, source: "not provided yet" },
-    KAP111: { rules: KAP111_RULES, samples: KAP111_SAMPLES, source: "not provided yet" },
-    KAP112: {
-      rules: KAP112_RULES,
-      samples: KAP112_SAMPLES,
-      source: "partial - 1 golden sample only (see kap112.ts)",
-    },
-    KAP122: { rules: KAP122_RULES, samples: KAP122_SAMPLES, source: "not provided yet" },
-  };
-  (Object.keys(defaults) as KapFont[]).forEach((font) => {
-    const d = defaults[font];
+  for (const font of KAP_FONTS) {
+    const d = FONT_DATA[font];
     REGISTRY[font] = {
       font,
       rules: [...d.rules],
@@ -115,5 +89,5 @@ export function __resetMappingsForTests(): void {
       samples: [...d.samples],
     };
     cache.delete(font);
-  });
+  }
 }

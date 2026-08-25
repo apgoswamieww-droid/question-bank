@@ -20,4 +20,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("app:menuAction", handler);
     return () => ipcRenderer.removeListener("app:menuAction", handler);
   },
+
+  // KAP AI Analyzer API - API key NEVER exposed to renderer
+  analyzer: {
+    getStatus: () => ipcRenderer.invoke("analyzer:getStatus"),
+    testConnection: () => ipcRenderer.invoke("analyzer:testConnection"),
+    analyzeGlyph: (params) => ipcRenderer.invoke("analyzer:analyzeGlyph", params),
+    analyzeSequence: (params) => ipcRenderer.invoke("analyzer:analyzeSequence", params),
+    getGlyphDataset: (params) => ipcRenderer.invoke("analyzer:getGlyphDataset", params),
+    exportVerified: (params) => ipcRenderer.invoke("analyzer:exportVerified", params),
+    saveState: (params) => ipcRenderer.invoke("analyzer:saveState", params),
+    loadState: (params) => ipcRenderer.invoke("analyzer:loadState", params),
+  },
 });

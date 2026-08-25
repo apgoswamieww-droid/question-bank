@@ -5,9 +5,13 @@
  * can run in Node (tests) as well as the Electron renderer.
  */
 
-export type KapFont = "KAP110" | "KAP111" | "KAP112" | "KAP122";
+/**
+ * Single source of truth for supported KAP fonts.
+ * To add a new font: add it here, then run `node scripts/add-font.mjs <FONT>`.
+ */
+export const KAP_FONTS = ["KAP110", "KAP111", "KAP112", "KAP122"] as const;
 
-export const KAP_FONTS: readonly KapFont[] = ["KAP110", "KAP111", "KAP112", "KAP122"];
+export type KapFont = (typeof KAP_FONTS)[number];
 
 /**
  * A single verified mapping rule.

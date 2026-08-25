@@ -18,6 +18,7 @@ import { MathEditorModal } from "./MathEditorModal";
 import { PrintPreviewModal } from "./print/PrintPreviewModal";
 import { ExamSettingsModal } from "./components/ExamSettingsModal";
 import { GujaratiConverterModal } from "./components/GujaratiConverterModal";
+import { KapAnalyzerReview } from "./components/KapAnalyzerReview";
 import { AppHeader } from "./components/AppHeader";
 import { DocumentToolbar } from "./components/DocumentToolbar";
 import { EditorToolbar } from "./components/EditorToolbar";
@@ -31,6 +32,7 @@ import { useRecentFiles } from "./hooks/useRecentFiles";
 import { useMathModal } from "./hooks/useMathModal";
 import { useFontMarks } from "./hooks/useFontMarks";
 import { useDocumentManagement } from "./hooks/useDocumentManagement";
+import { useKapAnalyzer } from "./hooks/useKapAnalyzer";
 
 import "./index.css";
 
@@ -55,6 +57,9 @@ function App() {
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [isExamSettingsOpen, setIsExamSettingsOpen] = useState(false);
   const [isConverterOpen, setIsConverterOpen] = useState(false);
+  const [isAnalyzerOpen, setIsAnalyzerOpen] = useState(false);
+
+  const kapAnalyzer = useKapAnalyzer();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -341,6 +346,7 @@ function App() {
           onSaveAs={handleSaveAs}
           onExamSettings={() => setIsExamSettingsOpen(true)}
           onPrintPreview={() => setIsPrintPreviewOpen(true)}
+          onOpenAnalyzer={() => setIsAnalyzerOpen(true)}
           recentFiles={recentFiles}
           isRecentOpen={isRecentOpen}
           setIsRecentOpen={setIsRecentOpen}
@@ -395,6 +401,27 @@ function App() {
         documentJSON={editor?.getJSON() || {}}
         documentTitle={docTitle}
         metadata={examMetadata}
+      />
+
+      <KapAnalyzerReview
+        isOpen={isAnalyzerOpen}
+        onClose={() => setIsAnalyzerOpen(false)}
+        providerStatus={kapAnalyzer.status}
+        selectedFont={kapAnalyzer.selectedFont}
+        onFontChange={kapAnalyzer.setSelectedFont}
+        onTestConnection={kapAnalyzer.testConnection}
+        onAnalyzeFont={kapAnalyzer.analyzeFont}
+        onCancelAnalysis={kapAnalyzer.cancelAnalysis}
+        candidates={kapAnalyzer.candidates}
+        sequenceCandidates={kapAnalyzer.sequenceCandidates}
+        progress={kapAnalyzer.progress}
+        isAnalyzing={kapAnalyzer.isAnalyzing}
+        error={kapAnalyzer.error}
+        onVerifyCandidate={kapAnalyzer.verifyCandidate}
+        onRejectCandidate={kapAnalyzer.rejectCandidate}
+        onEditCandidate={kapAnalyzer.editCandidate}
+        onVerifySequence={kapAnalyzer.verifySequence}
+        onExportVerified={kapAnalyzer.exportVerified}
       />
     </div>
   );

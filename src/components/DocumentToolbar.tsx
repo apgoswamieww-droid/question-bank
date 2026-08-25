@@ -6,6 +6,7 @@ import {
   Printer,
   Sliders,
   Clock,
+  Eye,
 } from "lucide-react";
 import type { RecentFileItem } from "../electron.d";
 
@@ -16,6 +17,7 @@ interface DocumentToolbarProps {
   onSaveAs: () => void;
   onExamSettings: () => void;
   onPrintPreview: () => void;
+  onOpenAnalyzer: () => void;
   recentFiles: RecentFileItem[];
   isRecentOpen: boolean;
   setIsRecentOpen: (open: boolean) => void;
@@ -29,6 +31,7 @@ export function DocumentToolbar({
   onSaveAs,
   onExamSettings,
   onPrintPreview,
+  onOpenAnalyzer,
   recentFiles,
   isRecentOpen,
   setIsRecentOpen,
@@ -85,6 +88,15 @@ export function DocumentToolbar({
         >
           <Printer size={15} strokeWidth={2} />{" "}
           <span>Print Preview / PDF</span>
+        </button>
+        <button
+          type="button"
+          className="btn-with-label btn-action-accent"
+          title="KAP AI Analyzer - Map legacy font glyphs"
+          onClick={onOpenAnalyzer}
+        >
+          <Eye size={15} strokeWidth={2} />{" "}
+          <span>KAP AI Analyzer</span>
         </button>
       </div>
 

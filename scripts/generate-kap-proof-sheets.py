@@ -67,10 +67,8 @@ FONTS_DIR = ROOT / "public" / "fonts"
 OUT_DIR = ROOT / "proof-sheets"
 
 KAP_FONTS = {
-    "KAP110": FONTS_DIR / "kap110.ttf",
-    "KAP111": FONTS_DIR / "kap111.ttf",
-    "KAP112": FONTS_DIR / "kap112.ttf",
-    "KAP122": FONTS_DIR / "kap122.ttf",
+    p.stem.upper(): p
+    for p in sorted(FONTS_DIR.glob("kap*.ttf"))
 }
 
 GUI_FONT_PATH = Path("/usr/share/fonts/truetype/noto/NotoSansGujarati-Regular.ttf")
