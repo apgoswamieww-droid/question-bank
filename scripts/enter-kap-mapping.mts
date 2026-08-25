@@ -11,12 +11,13 @@
  *   npx -y tsx scripts/enter-kap-mapping.mts [KAP112] [--codes 56,46] [--redo]
  *
  * Input grammar at each prompt:
- *   <gujarati text>      record mapping, confidence "sure"
- *   u <gujarati text>    record mapping, confidence "unsure"
- *   -                    byte has no Gujarati meaning (e.g. punctuation)
- *   <Enter>              skip for now
- *   b                    go back one step
- *   q                    save and quit
+ *   <unicode text>              record single-char mapping, confidence "sure"
+ *   s <unicode> <kap-bytes>     sequence mapping (e.g. s ગ VF)
+ *   u <text>                    record mapping, confidence "unsure"
+ *   -                           byte has no Gujarati meaning (e.g. punctuation)
+ *   <Enter>                     skip for now
+ *   b                           go back one step
+ *   q                           save and quit
  *
  * Progress is stored in mapping-data/<font>-session.json after every
  * accepted entry (atomic write). Re-running resumes where you left off.
@@ -37,6 +38,8 @@ interface ManifestCell {
 }
 interface SessionEntry {
   code: number; char: string; unicode: string;
+  /** KAP byte sequence. Single char for simple mappings, multi-char for sequences. */
+  kapSequence: string;
   confidence: "sure" | "unsure"; enteredAt: string;
 }
 interface Session {
@@ -91,15 +94,26 @@ function save(): void {
 }
 
 /** Gujarati block + common ASCII passthroughs. */
-function validateValue(v: string): string | null {
+function validateUnicode(v: string): string | null {
   if (!v) return null;
   const normalized = v.normalize("NFC");
   for (const ch of normalized) {
     const cp = ch.codePointAt(0)!;
     const gujarati = cp >= 0x0a80 && cp <= 0x0aff;
-    const asciiPass = cp >= 0x20 && cp <= 0x7e;
-    if (!gujarati && !asciiPass) {
-      return `character '${ch}' (U+${cp.toString(16)}) is outside Gujarati block / printable ASCII`;
+    if (!gujarati) {
+      return `character '${ch}' (U+${cp.toString(16)}) is not in Gujarati block`;
+    }
+  }
+  return null;
+}
+
+/** KAP output must be printable ASCII (0x20-0x7E). */
+function validateKapSequence(v: string): string | null {
+  if (!v) return null;
+  for (const ch of v) {
+    const cp = ch.codePointAt(0)!;
+    if (cp < 0x20 || cp > 0x7e) {
+      return `character '${ch}' (U+${cp.toString(16)}) is outside printable ASCII range for KAP output`;
     }
   }
   return null;
@@ -108,7 +122,15 @@ function validateValue(v: string): string | null {
 console.log(`
 KAP mapping entry — ${font}
 Answer with the Gujarati character(s) you SEE in the proof-sheet cell.
-'u <text>' marks unsure. '-' = no Gujarati meaning. Enter skips. 'q' saves+quits.
+
+Input grammar:
+  <unicode>              single-char mapping (sure)
+  s <unicode> <kap>      sequence mapping, e.g. s ગ VF (sure)
+  u <unicode>            unsure mapping
+  -                      no Gujarati meaning
+  <Enter>                skip
+  b                      back one step
+  q                      save and quit
 `);
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -173,23 +195,43 @@ async function main(): Promise<void> {
     if (raw === "") { idx++; continue; }
     if (raw === "b") { idx = Math.max(0, idx - 1); continue; }
 
-    let value = raw;
+    let unicode = "";
+    let kapSequence = String.fromCharCode(code);
     let confidence: "sure" | "unsure" = "sure";
-    if (raw.startsWith("u ")) {
-      confidence = "unsure";
-      value = raw.slice(2).trim();
-    }
-    if (value !== "-") {
-      const err = validateValue(value);
-      if (err) {
-        console.log(`  rejected: ${err}`);
+
+    if (raw === "-") {
+      unicode = "";
+      kapSequence = String.fromCharCode(code);
+    } else if (raw.startsWith("s ")) {
+      // Sequence mode: "s <unicode> <kap-bytes>"
+      const parts = raw.slice(2).trim().split(/\s+/);
+      if (parts.length < 2) {
+        console.log("  rejected: sequence mode requires 's <unicode> <kap-bytes>'");
         continue;
       }
+      unicode = parts[0];
+      kapSequence = parts.slice(1).join(" ");
+      const errU = validateUnicode(unicode);
+      if (errU) { console.log(`  rejected: ${errU}`); continue; }
+      const errK = validateKapSequence(kapSequence);
+      if (errK) { console.log(`  rejected: ${errK}`); continue; }
+    } else if (raw.startsWith("u ")) {
+      confidence = "unsure";
+      unicode = raw.slice(2).trim();
+      const errU = validateUnicode(unicode);
+      if (errU) { console.log(`  rejected: ${errU}`); continue; }
+    } else {
+      // Simple single-char mapping
+      unicode = raw;
+      const errU = validateUnicode(unicode);
+      if (errU) { console.log(`  rejected: ${errU}`); continue; }
     }
+
     session.entries[code] = {
       code,
       char: String.fromCharCode(code),
-      unicode: value === "-" ? "" : value.normalize("NFC"),
+      unicode: unicode.normalize("NFC"),
+      kapSequence,
       confidence,
       enteredAt: new Date().toISOString(),
     };

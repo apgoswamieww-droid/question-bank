@@ -13,6 +13,13 @@
  *   runs them against an INJECTED copy so the shipped registry stays
  *   unverified and the production UI keeps refusing conversion.
  *
+ * MULTI-BYTE KAP SUPPORT
+ * ----------------------
+ * Legacy KAP encoding may require multiple bytes for one Unicode character.
+ * The session's `kapSequence` field stores the full byte sequence.
+ * For simple single-byte mappings, kapSequence is a single character.
+ * For sequence mappings (e.g. s ગ VF), kapSequence is the full sequence.
+ *
  * Usage:
  *   npx -y tsx scripts/build-kap-mapping.mts [KAP112] [--dry]
  */
@@ -25,6 +32,8 @@ const DATA_DIR = path.join(ROOT, "mapping-data");
 
 interface SessionEntry {
   code: number; char: string; unicode: string;
+  /** KAP byte sequence. Single char for simple mappings, multi-char for sequences. */
+  kapSequence: string;
   confidence: "sure" | "unsure"; enteredAt: string;
 }
 interface Session { font: string; updatedAt: string; entries: Record<string, SessionEntry>; }
@@ -67,23 +76,19 @@ if (conflicts.length > 0) {
 const sureCount = entries.filter((e) => e.confidence === "sure" && e.unicode).length;
 const unsureCount = entries.filter((e) => e.confidence === "unsure").length;
 const noMeaningCount = entries.filter((e) => !e.unicode).length;
+const sequenceCount = entries.filter((e) => e.unicode && e.kapSequence.length > 1).length;
 
 // ---- generate mapping module ------------------------------------------------
-const cap = font[0] + font.slice(1).toLowerCase(); // Kap112
 const rulesTs = entries
   .filter((e) => e.unicode)
   .map((e) => {
     const uni = JSON.stringify(e.unicode);
-    const kapLit = JSON.stringify(String.fromCharCode(e.code));
+    const kap = JSON.stringify(e.kapSequence);
     const note = e.confidence === "unsure" ? " // unsure" : "";
-    return `  { unicode: ${uni}, kap: ${kapLit} },${note}`;
+    const seqNote = e.kapSequence.length > 1 ? ` // ${e.kapSequence.length}-byte sequence` : "";
+    return `  { unicode: ${uni}, kap: ${kap} },${note}${seqNote}`;
   })
   .join("\n");
-
-const passthroughs = entries
-  .filter((e) => !e.unicode)
-  .map((e) => `'${JSON.stringify(e.char).slice(1, -1)}'`)
-  .join(" ");
 
 const moduleSrc = `import type { ConversionRule, VerifiedSample } from "../types";
 
@@ -100,10 +105,12 @@ const moduleSrc = `import type { ConversionRule, VerifiedSample } from "../types
  *
  * Entered: ${entries.length} codes (${sureCount} sure, ${unsureCount} unsure,
  * ${noMeaningCount} marked as having no Gujarati meaning).
+ * Sequence mappings: ${sequenceCount} (${sequenceCount} multi-byte KAP outputs).
  * Session source: mapping-data/${stem}-session.json (${session.updatedAt})
  *
- * The engine consumes rules as longest-sequence-first on the unicode side;
- * single-code entries here are safe by construction.
+ * The engine consumes rules as longest-sequence-first on the unicode side.
+ * Multi-byte KAP outputs are fully supported — the KAP side may be any
+ * printable ASCII string (0x20-0x7E).
  */
 
 export const ${font}_RULES: ConversionRule[] = [
@@ -112,7 +119,7 @@ ${rulesTs}
 
 export const ${font}_SAMPLES: VerifiedSample[] = ${font === "KAP112" ? `[
   {
-    unicode: "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0",
+    unicode: "\\u0A97\\u0AC1\\u0A9C\\u0AB0\\u0ABE\\u0AA4\\u0AC0",
     expected: "VF5[,F",
     source: "Default editor content in src/App.tsx (KAP112 span)",
   },
@@ -124,7 +131,12 @@ mkdirSync(DATA_DIR, { recursive: true });
 const casesPath = path.join(DATA_DIR, `${stem}-cases.json`);
 const cases = entries
   .filter((e) => e.unicode)
-  .map((e) => ({ unicode: e.unicode, expected: e.char }));
+  .map((e) => ({
+    unicode: e.unicode,
+    expected: e.kapSequence,
+    confidence: e.confidence,
+    isSequence: e.kapSequence.length > 1,
+  }));
 
 function writeAtomic(p: string, data: string): void {
   const tmp = p + ".tmp";
@@ -134,6 +146,7 @@ function writeAtomic(p: string, data: string): void {
 
 console.log(`Entries: ${entries.length} (${sureCount} sure / ${unsureCount} unsure / ${noMeaningCount} no-meaning)`);
 console.log(`Rules generated: ${entries.length - noMeaningCount}`);
+console.log(`Sequence mappings: ${sequenceCount}`);
 if (conflicts.length > 0) console.warn(`Conflicts: ${conflicts.length} (see above — fix session before trusting output)`);
 
 if (dry) {

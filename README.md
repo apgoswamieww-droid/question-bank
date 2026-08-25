@@ -1,75 +1,110 @@
-# React + TypeScript + Vite
+# Question Bank
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Desktop application for creating, editing, and exporting exam question papers. Built with React, TipTap, and Electron. Targets Indian educational institutions with support for MCQ-based exams and Gujarati language via legacy KAP fonts.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **MCQ Question Blocks** — Structured blocks with question, 4 options (A-D), answer, and marks
+- **Rich Text Editor** — Bold, italic, underline, alignment, lists, font family/size
+- **A4 Print Layout** — Auto-pagination, exam headers, section dividers, page numbering
+- **PDF Export** — Via Electron's printToPDF
+- **Gujarati Support** — Unicode-to-KAP font conversion (KAP110, KAP111, KAP112, KAP122)
+- **Math Equations** — KaTeX/LaTeX editor with categorized formula library
+- **Image Support** — Paste, drop, or file insert with resize and alignment
+- **Exam Settings** — Configure institute name, title, subject, sections, logo, instructions
+- **Auto-Save** — Every 30 seconds with status indicator
+- **Recent Files** — Quick access to recently opened documents
+- **Keyboard Shortcuts** — Ctrl+N/O/S/Shift+S
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 19, TypeScript 6, Vite 8 |
+| Editor | TipTap 3 (ProseMirror) |
+| Math | KaTeX 0.18 |
+| Desktop | Electron 43 |
+| Testing | Vitest, @testing-library/react |
+| Linting | ESLint 10, typescript-eslint |
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Prerequisites
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Node.js 22+
+- npm
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Setup
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+npm run dev
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Starts Vite dev server and Electron simultaneously with hot reload.
+
+### Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server + Electron |
+| `npm run build` | Production build |
+| `npm run build:win` | Build Windows distributable |
+| `npm test` | Run tests |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run lint` | Run ESLint |
+| `npm run typecheck` | TypeScript type-check |
+
+## Project Structure
 
 ```
+question-bank/
+├── electron/              # Electron main process
+│   ├── main.cjs           # Window, IPC, file dialogs, PDF export
+│   └── preload.cjs        # Context bridge
+├── src/
+│   ├── App.tsx            # Root component (composition root)
+│   ├── extensions/        # Custom TipTap extensions
+│   ├── hooks/             # Custom React hooks
+│   ├── components/        # UI components
+│   ├── converter/         # Gujarati Unicode → KAP conversion engine
+│   ├── print/             # Print/PDF layout engine
+│   ├── types/             # TypeScript types
+│   ├── utils/             # Utilities
+│   └── test/              # Test setup
+├── scripts/               # Offline tooling (font mapping)
+├── proof-sheets/          # KAP font glyph verification sheets
+└── doc/                   # Development logs
+```
+
+## Custom File Format
+
+Documents use `.qbank` — a JSON format containing:
+
+```json
+{
+  "format": "question-bank",
+  "version": 2,
+  "title": "Exam Title",
+  "metadata": { "instituteName": "...", "sections": [...] },
+  "content": { /* TipTap JSON document */ }
+}
+```
+
+## Testing
+
+```bash
+npm test           # Single run
+npm run test:watch # Watch mode
+```
+
+Tests cover the Gujarati conversion engine, document migration, and validation logic.
+
+## License
+
+See [LICENSE](LICENSE) for details.
