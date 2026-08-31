@@ -10,24 +10,13 @@ export function useWindowCloseHandler({
   onSave,
 }: UseWindowCloseHandlerOptions) {
   useEffect(() => {
-    if (!window.electronAPI) return;
-
-    const unbindClose = window.electronAPI.onCloseRequested(async () => {
-      if (!isDirty) {
-        window.electronAPI?.confirmClose(false);
-      } else {
-        const choice = await window.electronAPI?.confirmClose(true);
-        if (choice === "save") {
-          const saved = await onSave();
-          if (saved) {
-            window.electronAPI?.confirmClose(false);
-          }
-        }
-      }
-    });
-
-    return () => {
-      unbindClose();
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
     };
+
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty, onSave]);
 }

@@ -3,6 +3,14 @@ import type { Editor } from "@tiptap/react";
 import type { ExamMetadata } from "../types/examMetadata";
 import { DEFAULT_EXAM_METADATA } from "../types/examMetadata";
 import { migrateDocument } from "../utils/documentMigration";
+import {
+  openFileFromDisk,
+  saveFileToDisk,
+  saveAsFileToDisk,
+  clearSavedHandle,
+} from "../web/fileApi";
+import { addRecentFile } from "../web/recentFiles";
+import type { ConfirmCloseResult } from "../types/files";
 
 const getErrorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : "Unknown error";
@@ -10,6 +18,14 @@ const getErrorMessage = (err: unknown): string =>
 interface UseDocumentManagementOptions {
   editor: Editor | null;
   showToast: (msg: string) => void;
+}
+
+function confirmClosePrompt(isDirty: boolean): ConfirmCloseResult {
+  if (!isDirty) return "dontsave";
+  const choice = window.confirm(
+    "You have unsaved changes. Do you want to save before continuing?"
+  );
+  return choice ? "save" : "dontsave";
 }
 
 export function useDocumentManagement({
@@ -26,14 +42,10 @@ export function useDocumentManagement({
     useState<ExamMetadata>(DEFAULT_EXAM_METADATA);
 
   const saveDocumentContent = useCallback(
-    async (targetPath: string): Promise<boolean> => {
-      if (!editor || !window.electronAPI) return false;
+    async (): Promise<boolean> => {
+      if (!editor) return false;
 
-      const title =
-        targetPath
-          .split(/[/\\]/)
-          .pop()
-          ?.replace(/\.qbank$/i, "") || docTitle;
+      const title = docTitle || "Untitled Question Paper";
       const docPayload = {
         format: "question-bank",
         version: 2,
@@ -45,15 +57,16 @@ export function useDocumentManagement({
       };
 
       try {
-        const result = await window.electronAPI.writeFile(
-          targetPath,
+        const savedName = await saveFileToDisk(
+          title,
           JSON.stringify(docPayload, null, 2)
         );
-        if (result && result.filePath) {
-          setFilePath(result.filePath);
+        if (savedName) {
+          setFilePath(savedName);
           setDocTitle(title);
           setIsDirty(false);
           setAutoSaveStatus("saved");
+          addRecentFile(savedName);
           return true;
         }
       } catch (err) {
@@ -67,29 +80,43 @@ export function useDocumentManagement({
   );
 
   const handleSaveAs = useCallback(async (): Promise<boolean> => {
-    if (!window.electronAPI) return false;
+    if (!editor) return false;
     try {
-      const selectedPath = await window.electronAPI.saveFileDialog(docTitle);
-      if (selectedPath) {
-        return await saveDocumentContent(selectedPath);
+      const title = docTitle || "Untitled Question Paper";
+      const docPayload = {
+        format: "question-bank",
+        version: 2,
+        title,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        metadata: examMetadata,
+        content: editor.getJSON(),
+      };
+      const savedName = await saveAsFileToDisk(
+        title,
+        JSON.stringify(docPayload, null, 2)
+      );
+      if (savedName) {
+        setFilePath(savedName);
+        setDocTitle(title);
+        setIsDirty(false);
+        setAutoSaveStatus("saved");
+        addRecentFile(savedName);
+        return true;
       }
     } catch (err) {
       console.error("Save As error:", err);
       showToast(`Save As failed: ${getErrorMessage(err)}`);
     }
     return false;
-  }, [docTitle, saveDocumentContent, showToast]);
+  }, [editor, docTitle, examMetadata, showToast]);
 
   const handleSave = useCallback(async (): Promise<boolean> => {
-    if (filePath) {
-      return await saveDocumentContent(filePath);
-    } else {
-      return await handleSaveAs();
-    }
-  }, [filePath, saveDocumentContent, handleSaveAs]);
+    return await saveDocumentContent();
+  }, [saveDocumentContent]);
 
   const handleOpenContent = useCallback(
-    (targetPath: string, jsonString: string) => {
+    (targetName: string, jsonString: string) => {
       if (!editor) return;
       try {
         const parsed = JSON.parse(jsonString);
@@ -104,17 +131,15 @@ export function useDocumentManagement({
 
         editor.commands.setContent(migrated.content);
         setExamMetadata(migrated.metadata);
-        setFilePath(targetPath);
+        setFilePath(targetName);
         const name =
-          targetPath
-            .split(/[/\\]/)
-            .pop()
-            ?.replace(/\.qbank$/i, "") ||
+          targetName.replace(/\.qbank$/i, "") ||
           migrated.title ||
           "Untitled Document";
         setDocTitle(name);
         setIsDirty(false);
         setAutoSaveStatus("idle");
+        addRecentFile(targetName);
       } catch (err) {
         console.error("Parse document error:", err);
         alert(
@@ -125,35 +150,9 @@ export function useDocumentManagement({
     [editor]
   );
 
-  const handleOpenPath = useCallback(
-    async (targetPath: string) => {
-      if (!window.electronAPI) return;
-      if (isDirty) {
-        const choice = await window.electronAPI.confirmClose(true);
-        if (choice === "cancel") return;
-        if (choice === "save") {
-          const saved = await handleSave();
-          if (!saved) return;
-        }
-      }
-
-      try {
-        const result = await window.electronAPI.readFile(targetPath);
-        if (result && result.content) {
-          handleOpenContent(result.filePath, result.content);
-        }
-      } catch (err) {
-        console.error("Open file path error:", err);
-        showToast(`Failed to open file: ${getErrorMessage(err)}`);
-      }
-    },
-    [isDirty, handleSave, handleOpenContent, showToast]
-  );
-
   const handleOpen = useCallback(async () => {
-    if (!window.electronAPI) return;
     if (isDirty) {
-      const choice = await window.electronAPI.confirmClose(true);
+      const choice = confirmClosePrompt(true);
       if (choice === "cancel") return;
       if (choice === "save") {
         const saved = await handleSave();
@@ -162,9 +161,9 @@ export function useDocumentManagement({
     }
 
     try {
-      const result = await window.electronAPI.openFileDialog();
-      if (result && result.filePath && result.content) {
-        handleOpenContent(result.filePath, result.content);
+      const result = await openFileFromDisk();
+      if (result && result.content) {
+        handleOpenContent(result.name, result.content);
       }
     } catch (err) {
       console.error("Open dialog error:", err);
@@ -174,8 +173,8 @@ export function useDocumentManagement({
 
   const handleNew = useCallback(async () => {
     if (!editor) return;
-    if (isDirty && window.electronAPI) {
-      const choice = await window.electronAPI.confirmClose(true);
+    if (isDirty) {
+      const choice = confirmClosePrompt(true);
       if (choice === "cancel") return;
       if (choice === "save") {
         const saved = await handleSave();
@@ -184,6 +183,7 @@ export function useDocumentManagement({
     }
 
     editor.commands.setContent("<p></p>");
+    clearSavedHandle();
     setFilePath(null);
     setDocTitle("Untitled Question Paper");
     setIsDirty(false);
@@ -209,8 +209,6 @@ export function useDocumentManagement({
     handleSave,
     handleSaveAs,
     handleOpen,
-    handleOpenPath,
-    handleOpenContent,
     handleNew,
     handleSaveExamMetadata,
     markDirty,

@@ -14,6 +14,7 @@ import kap110Font from "../assets/fonts/kap110.ttf?inline";
 import kap111Font from "../assets/fonts/kap111.ttf?inline";
 import kap112Font from "../assets/fonts/kap112.ttf?inline";
 import kap122Font from "../assets/fonts/kap122.ttf?inline";
+import { openPrintWindow } from "../web/printApi";
 
 const KAP_FONT_FACES = `
   @font-face { font-family: "KAP110"; src: url("${kap110Font}") format("truetype"); }
@@ -284,17 +285,9 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   const handleExportPDF = async () => {
     if (isExporting) return;
     setIsExporting(true);
-
     try {
       const htmlContent = getFullHtmlForPrint();
-      if (window.electronAPI?.exportPdf) {
-        const result = await window.electronAPI.exportPdf(htmlContent, documentTitle);
-        if (result?.success) {
-          alert(`PDF exported successfully to:\n${result.filePath}`);
-        }
-      } else {
-        alert("PDF export is supported in the desktop Electron version.");
-      }
+      openPrintWindow(htmlContent);
     } catch (err) {
       console.error("PDF Export error:", err);
       alert(`Unable to export PDF: ${getErrorMessage(err)}`);
@@ -306,11 +299,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   const handleNativePrint = async () => {
     try {
       const htmlContent = getFullHtmlForPrint();
-      if (window.electronAPI?.printDocument) {
-        await window.electronAPI.printDocument(htmlContent);
-      } else {
-        window.print();
-      }
+      openPrintWindow(htmlContent);
     } catch (err) {
       console.error("Native Print error:", err);
       alert(`Unable to print document: ${getErrorMessage(err)}`);

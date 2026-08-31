@@ -73,7 +73,6 @@ function App() {
     handleSave,
     handleSaveAs,
     handleOpen,
-    handleOpenPath,
     handleNew,
     handleSaveExamMetadata,
     markDirty,
@@ -314,6 +313,12 @@ function App() {
     [editor]
   );
 
+  const handleOpenKapImporter = useCallback(() => {
+    showToast(
+      "KAP → Unicode Importer is not available in web mode. Run the desktop version for this tool."
+    );
+  }, [showToast]);
+
   if (!editor) {
     return null;
   }
@@ -347,10 +352,10 @@ function App() {
           onExamSettings={() => setIsExamSettingsOpen(true)}
           onPrintPreview={() => setIsPrintPreviewOpen(true)}
           onOpenAnalyzer={() => setIsAnalyzerOpen(true)}
+          onOpenKapImporter={handleOpenKapImporter}
           recentFiles={recentFiles}
           isRecentOpen={isRecentOpen}
           setIsRecentOpen={setIsRecentOpen}
-          onOpenRecent={handleOpenPath}
         />
 
         <EditorToolbar

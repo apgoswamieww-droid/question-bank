@@ -7,8 +7,9 @@ import {
   Sliders,
   Clock,
   Eye,
+  Languages,
 } from "lucide-react";
-import type { RecentFileItem } from "../electron.d";
+import type { RecentFileItem } from "../types/files";
 
 interface DocumentToolbarProps {
   onNew: () => void;
@@ -18,10 +19,10 @@ interface DocumentToolbarProps {
   onExamSettings: () => void;
   onPrintPreview: () => void;
   onOpenAnalyzer: () => void;
+  onOpenKapImporter: () => void;
   recentFiles: RecentFileItem[];
   isRecentOpen: boolean;
   setIsRecentOpen: (open: boolean) => void;
-  onOpenRecent: (path: string) => void;
 }
 
 export function DocumentToolbar({
@@ -32,10 +33,10 @@ export function DocumentToolbar({
   onExamSettings,
   onPrintPreview,
   onOpenAnalyzer,
+  onOpenKapImporter,
   recentFiles,
   isRecentOpen,
   setIsRecentOpen,
-  onOpenRecent,
 }: DocumentToolbarProps) {
   return (
     <div className="toolbar doc-toolbar">
@@ -98,6 +99,15 @@ export function DocumentToolbar({
           <Eye size={15} strokeWidth={2} />{" "}
           <span>KAP AI Analyzer</span>
         </button>
+        <button
+          type="button"
+          className="btn-with-label btn-action-accent"
+          title="KAP → Unicode - Convert legacy KAP font text to Unicode Gujarati"
+          onClick={onOpenKapImporter}
+        >
+          <Languages size={15} strokeWidth={2} />{" "}
+          <span>KAP → Unicode</span>
+        </button>
       </div>
 
       <div className="toolbar-separator" />
@@ -117,18 +127,12 @@ export function DocumentToolbar({
               <div className="recent-item empty">No recent files</div>
             ) : (
               recentFiles.map((file) => (
-                <button
-                  key={file.path}
+                <div
+                  key={file.openedAt}
                   className="recent-item"
-                  type="button"
-                  onClick={() => {
-                    setIsRecentOpen(false);
-                    onOpenRecent(file.path);
-                  }}
                 >
                   <span className="recent-name">{file.name}</span>
-                  <span className="recent-path">{file.path}</span>
-                </button>
+                </div>
               ))
             )}
           </div>
