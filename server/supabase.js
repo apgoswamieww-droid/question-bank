@@ -776,3 +776,358 @@ export async function getQuestionPerformance(questionId) {
   if (error) throw new Error(`Supabase performance.get: ${error.message}`);
   return data;
 }
+
+// ---------------------------------------------------------------------------
+// Analytics (dashboard aggregations)
+// ---------------------------------------------------------------------------
+function dateKey(value) {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
+
+function weekKey(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const dow = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+
+async function usedQuestionIds() {
+  const { data, error } = await client.from("question_usage_log").select("question_id");
+  if (error) throw new Error(`Supabase analytics.usedIds: ${error.message}`);
+  return [...new Set((data ?? []).map((r) => r.question_id))];
+}
+
+export async function analyticsOverview() {
+  if (!client) {
+    return { total: 0, published: 0, drafts: 0, archived: 0, total_usage: 0, used_questions: 0, unused_questions: 0, avg_success_rate: 0, most_used: null };
+  }
+  const countByStatus = async (status) => {
+    const { count, error } = await client.from("questions")
+      .select("id", { count: "exact", head: true }).eq("status", status);
+    if (error) throw new Error(`Supabase analytics.count: ${error.message}`);
+    return count ?? 0;
+  };
+  const totalQ = await client.from("questions").select("id", { count: "exact", head: true });
+  if (totalQ.error) throw new Error(`Supabase analytics.total: ${totalQ.error.message}`);
+  const total = totalQ.count ?? 0;
+  const [published, drafts, archived] = await Promise.all([
+    countByStatus("published"),
+    countByStatus("draft"),
+    countByStatus("archived"),
+  ]);
+  const { count: usageCount, error: usageErr } = await client.from("question_usage_log")
+    .select("id", { count: "exact", head: true });
+  if (usageErr) throw new Error(`Supabase analytics.usage: ${usageErr.message}`);
+  const { data: perfRows, error: perfErr } = await client.from("question_performance").select("success_rate");
+  if (perfErr) throw new Error(`Supabase analytics.perf: ${perfErr.message}`);
+  const avgSuccess = (perfRows ?? []).length
+    ? (perfRows ?? []).reduce((acc, p) => acc + (p?.success_rate ?? 0), 0) / perfRows.length
+    : 0;
+  const usedIds = await usedQuestionIds();
+  const usageMap = {};
+  const { data: usageRows, error: usageRowsErr } = await client.from("question_usage_log").select("question_id");
+  if (usageRowsErr) throw new Error(`Supabase analytics.usedMap: ${usageRowsErr.message}`);
+  for (const r of usageRows ?? []) usageMap[r.question_id] = (usageMap[r.question_id] || 0) + 1;
+  let mostUsedId = null;
+  let mostUsedCount = 0;
+  for (const [id, c] of Object.entries(usageMap)) if (c > mostUsedCount) { mostUsedCount = c; mostUsedId = id; }
+  let mostUsed = null;
+  if (mostUsedId) {
+    const q = await getQuestionById(mostUsedId);
+    if (q) mostUsed = { ...q, usage_count: mostUsedCount };
+  }
+  return {
+    total,
+    published,
+    drafts,
+    archived,
+    total_usage: usageCount ?? 0,
+    used_questions: usedIds.length,
+    unused_questions: Math.max(0, total - usedIds.length),
+    avg_success_rate: Math.round(avgSuccess * 100) / 100,
+    most_used: mostUsed,
+  };
+}
+
+export async function analyticsMostUsed(limit = 10) {
+  if (!client) return [];
+  const { data, error } = await client.from("question_usage_log").select("question_id");
+  if (error) throw new Error(`Supabase analytics.mostUsed: ${error.message}`);
+  const usageMap = {};
+  for (const r of data ?? []) usageMap[r.question_id] = (usageMap[r.question_id] || 0) + 1;
+  const sorted = Object.entries(usageMap).sort((a, b) => b[1] - a[1]).slice(0, limit);
+  const out = [];
+  for (const [id, count] of sorted) {
+    const q = await getQuestionById(id);
+    if (q) out.push({ ...q, usage_count: count });
+  }
+  return out;
+}
+
+export async function analyticsUnused(limit = 25) {
+  if (!client) return [];
+  const used = new Set(await usedQuestionIds());
+  const questions = await listQuestions({ limit: 10000 });
+  return questions.filter((q) => !used.has(q.id)).slice(0, limit);
+}
+
+export async function analyticsBySchool() {
+  if (!client) return [];
+  const { data, error } = await client.from("question_usage_log").select("school_id, class_name");
+  if (error) throw new Error(`Supabase analytics.bySchool: ${error.message}`);
+  const map = {};
+  for (const r of data ?? []) {
+    if (!r.school_id) continue;
+    map[r.school_id] = map[r.school_id] || { school_id: r.school_id, usage_count: 0, class_names: new Set() };
+    map[r.school_id].usage_count += 1;
+    if (r.class_name) map[r.school_id].class_names.add(r.class_name);
+  }
+  const ids = Object.keys(map);
+  let names = {};
+  if (ids.length) {
+    const { data: schools, error: se } = await client.from("schools").select("id, name").in("id", ids);
+    if (!se) names = Object.fromEntries((schools ?? []).map((s) => [s.id, s.name]));
+  }
+  return Object.values(map)
+    .map((m) => ({
+      school_id: m.school_id,
+      school_name: names[m.school_id] || "Unknown school",
+      usage_count: m.usage_count,
+      class_names: [...m.class_names],
+    }))
+    .sort((a, b) => b.usage_count - a.usage_count);
+}
+
+export async function analyticsByTeacher() {
+  if (!client) return [];
+  const { data, error } = await client.from("question_usage_log").select("used_by");
+  if (error) throw new Error(`Supabase analytics.byTeacher: ${error.message}`);
+  const map = {};
+  for (const r of data ?? []) if (r.used_by) map[r.used_by] = (map[r.used_by] || 0) + 1;
+  const ids = Object.keys(map);
+  const userMap = {};
+  if (ids.length) {
+    const users = await listUsers();
+    for (const u of users) if (u) userMap[u.id] = u.name || u.email;
+  }
+  return Object.entries(map)
+    .map(([id, count]) => ({ teacher_id: id, teacher_name: userMap[id] || "Unknown teacher", usage_count: count }))
+    .sort((a, b) => b.usage_count - a.usage_count);
+}
+
+export async function analyticsOverTime() {
+  if (!client) return { daily: [], weekly: [], monthly: [] };
+  const { data, error } = await client.from("question_usage_log").select("created_at");
+  if (error) throw new Error(`Supabase analytics.overTime: ${error.message}`);
+  const dailyMap = {};
+  for (const r of data ?? []) {
+    const d = dateKey(r.created_at);
+    dailyMap[d] = (dailyMap[d] || 0) + 1;
+  }
+  const daily = Object.entries(dailyMap)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, count]) => ({ date, count }));
+  const weeklyMap = {};
+  const monthlyMap = {};
+  for (const { date, count } of daily) {
+    const wk = weekKey(date);
+    weeklyMap[wk] = (weeklyMap[wk] || 0) + count;
+    const mo = date.slice(0, 7);
+    monthlyMap[mo] = (monthlyMap[mo] || 0) + count;
+  }
+  const weekly = Object.entries(weeklyMap)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, count]) => ({ key, count }));
+  const monthly = Object.entries(monthlyMap)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, count]) => ({ key, count }));
+  return { daily, weekly, monthly };
+}
+
+export async function analyticsPerformance() {
+  if (!client) {
+    return { by_difficulty: [], by_subject: [], overall: { attempts: 0, success_rate: 0 } };
+  }
+  const questions = await listQuestions({ limit: 10000 });
+  const qById = new Map(questions.map((q) => [q.id, q]));
+  const { data: rows, error } = await client.from("question_performance").select("*");
+  if (error) throw new Error(`Supabase analytics.performance: ${error.message}`);
+  const diffMap = {};
+  const subjMap = {};
+  let totalAttempts = 0;
+  let totalCorrect = 0;
+  for (const r of rows ?? []) {
+    const q = qById.get(r.question_id);
+    totalAttempts += r.total_attempts || 0;
+    totalCorrect += r.correct_count || 0;
+    if (!q) continue;
+    const diff = q.difficulty || "not-set";
+    diffMap[diff] = diffMap[diff] || { difficulty: diff, attempts: 0, correct: 0 };
+    diffMap[diff].attempts += r.total_attempts || 0;
+    diffMap[diff].correct += r.correct_count || 0;
+    const subj = q.subject_id || "none";
+    subjMap[subj] = subjMap[subj] || { subject_id: subj, attempts: 0, correct: 0 };
+    subjMap[subj].attempts += r.total_attempts || 0;
+    subjMap[subj].correct += r.correct_count || 0;
+  }
+  const withRate = (acc) =>
+    acc.map((x) => ({ ...x, success_rate: x.attempts ? Math.round((x.correct / x.attempts) * 10000) / 100 : 0 }));
+  const subjIds = Object.keys(subjMap);
+  let subjNames = {};
+  if (subjIds.length) {
+    const { data: subs, error: se } = await client.from("subjects").select("id, name").in("id", subjIds);
+    if (!se) subjNames = Object.fromEntries((subs ?? []).map((s) => [s.id, s.name]));
+  }
+  const bySubject = withRate(Object.values(subjMap))
+    .map((x) => ({ ...x, subject_name: subjNames[x.subject_id] || "No subject" }))
+    .sort((a, b) => b.attempts - a.attempts);
+  const byDifficulty = withRate(Object.values(diffMap)).sort((a, b) => b.attempts - a.attempts);
+  return {
+    by_difficulty: byDifficulty,
+    by_subject: bySubject,
+    overall: { attempts: totalAttempts, success_rate: totalAttempts ? Math.round((totalCorrect / totalAttempts) * 10000) / 100 : 0 },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tests (Phase 7 — Test Creation)
+// ---------------------------------------------------------------------------
+const rowToTest = (row) => ({
+  id: row.id,
+  title: row.title,
+  description: row.description,
+  standard_id: row.standard_id,
+  subject_id: row.subject_id,
+  exam_type_id: row.exam_type_id,
+  language_id: row.language_id,
+  duration_min: row.duration_min,
+  total_marks: row.total_marks,
+  passing_marks: row.passing_marks,
+  shuffle_questions: row.shuffle_questions,
+  shuffle_options: row.shuffle_options,
+  show_results: row.show_results,
+  show_answers: row.show_answers,
+  status: row.status,
+  created_by: row.created_by,
+  created_at: row.created_at,
+  updated_at: row.updated_at,
+});
+
+async function listTestQuestionRows(testId) {
+  const { data, error } = await client.from("test_questions")
+    .select("*").eq("test_id", testId).order("sort_order");
+  if (error) throw new Error(`Supabase tests.questions: ${error.message}`);
+  return data ?? [];
+}
+
+export async function listTests({ status, limit = 100, offset = 0 } = {}) {
+  if (!client) return { tests: [], total: 0 };
+  let query = client.from("tests").select(
+    "id, title, description, standard_id, subject_id, exam_type_id, language_id, duration_min, total_marks, passing_marks, shuffle_questions, shuffle_options, show_results, show_answers, status, created_by, created_at, updated_at, test_questions(count)"
+  ).order("created_at", { ascending: false });
+  if (status) query = query.eq("status", status);
+  query = query.range(offset, offset + limit - 1);
+  const { data, error } = await query;
+  if (error) throw new Error(`Supabase tests.list: ${error.message}`);
+  const tests = (data ?? []).map((r) => ({
+    ...rowToTest(r),
+    question_count: r.test_questions?.[0]?.count ?? 0,
+  }));
+  const { count, error: countErr } = await client.from("tests").select("id", { count: "exact", head: true });
+  if (countErr) throw new Error(`Supabase tests.count: ${countErr.message}`);
+  return { tests, total: count ?? 0 };
+}
+
+async function testByIdWithQuestions(id) {
+  const { data, error } = await client.from("tests")
+    .select("id, title, description, standard_id, subject_id, exam_type_id, language_id, duration_min, total_marks, passing_marks, shuffle_questions, shuffle_options, show_results, show_answers, status, created_by, created_at, updated_at")
+    .eq("id", id).maybeSingle();
+  if (error) throw new Error(`Supabase tests.get: ${error.message}`);
+  if (!data) return null;
+  const rows = await listTestQuestionRows(id);
+  const questions = [];
+  for (const row of rows) {
+    const q = await getQuestionById(row.question_id);
+    if (!q) continue;
+    const options = await listQuestionOptions(row.question_id);
+    questions.push({ id: row.id, question_id: row.question_id, sort_order: row.sort_order, marks: row.marks, question: q, options });
+  }
+  return { test: rowToTest(data), questions };
+}
+
+export async function getTestById(id) {
+  if (!client) return null;
+  return testByIdWithQuestions(id);
+}
+
+export async function createTest({ title, description, standard_id, subject_id, exam_type_id, language_id, duration_min, total_marks, passing_marks, shuffle_questions, shuffle_options, show_results, show_answers, status, created_by, questionIds }) {
+  if (!client) throw new Error("Supabase not configured");
+  const { data, error } = await client.from("tests")
+    .insert({
+      title, description: description || null,
+      standard_id: standard_id || null, subject_id: subject_id || null,
+      exam_type_id: exam_type_id || null, language_id: language_id || null,
+      duration_min: duration_min ?? 60,
+      total_marks: total_marks ?? 0, passing_marks: passing_marks ?? 0,
+      shuffle_questions: shuffle_questions ?? true, shuffle_options: shuffle_options ?? true,
+      show_results: show_results ?? true, show_answers: show_answers ?? false,
+      status: status || "draft", created_by,
+    })
+    .select().single();
+  if (error) throw new Error(`Supabase tests.create: ${error.message}`);
+  await replaceTestQuestions(data.id, questionIds ?? []);
+  return testByIdWithQuestions(data.id);
+}
+
+export async function replaceTestQuestions(testId, questionIds) {
+  if (!client) return;
+  if (questionIds.length) {
+    await client.from("test_questions").delete().eq("test_id", testId);
+  }
+  const rows = [];
+  for (let i = 0; i < questionIds.length; i++) {
+    rows.push({ test_id: testId, question_id: questionIds[i], sort_order: i, marks: 0 });
+  }
+  if (rows.length) {
+    const { error } = await client.from("test_questions").insert(rows);
+    if (error) throw new Error(`Supabase tests.questions.replace: ${error.message}`);
+  }
+}
+
+export async function updateTest(id, patch, questionIds) {
+  if (!client) return null;
+  const dbPatch = {};
+  const fieldMap = {
+    title: "title", description: "description",
+    standard_id: "standard_id", subject_id: "subject_id",
+    exam_type_id: "exam_type_id", language_id: "language_id",
+    duration_min: "duration_min", total_marks: "total_marks", passing_marks: "passing_marks",
+    shuffle_questions: "shuffle_questions", shuffle_options: "shuffle_options",
+    show_results: "show_results", show_answers: "show_answers", status: "status",
+  };
+  for (const [key, col] of Object.entries(fieldMap)) {
+    if (patch[key] !== undefined) dbPatch[col] = patch[key];
+  }
+  if (Object.keys(dbPatch).length) {
+    const { error } = await client.from("tests").update(dbPatch).eq("id", id);
+    if (error) throw new Error(`Supabase tests.update: ${error.message}`);
+  }
+  if (questionIds !== undefined) {
+    await replaceTestQuestions(id, questionIds);
+  }
+  return testByIdWithQuestions(id);
+}
+
+export async function deleteTest(id) {
+  if (!client) return false;
+  const { error } = await client.from("tests").delete().eq("id", id);
+  if (error) throw new Error(`Supabase tests.delete: ${error.message}`);
+  return true;
+}
+
+export async function countTests() {
+  if (!client) return 0;
+  const { count, error } = await client.from("tests").select("id", { count: "exact", head: true });
+  if (error) throw new Error(`Supabase tests.count: ${error.message}`);
+  return count ?? 0;
+}

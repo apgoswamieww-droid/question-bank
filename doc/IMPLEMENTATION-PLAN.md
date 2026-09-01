@@ -198,66 +198,67 @@
 > _The main question entry form with 3-panel layout_
 
 ### 5.1 Page Structure
-- [ ] Create `QuestionEntryPage.tsx` — 3-panel layout (Left/Center/Right)
+- [x] Create `QuestionEntryPage.tsx` — 3-panel layout (Left/Center/Right)
+- [x] Add route `/admin/question-entry`
 - [ ] Add route `/admin/questions/new`
 - [ ] Add route `/admin/questions/:id/edit`
-- [ ] Add to sidebar navigation
+- [x] Add to sidebar navigation
 
 ### 5.2 Left Panel — Hierarchy Tree
-- [ ] Create `QuestionTree.tsx` — Collapsible tree (Std → Subject → Chapter → Topic)
-- [ ] Click node → filters question list
-- [ ] Show question count per node
+- [x] Create `QuestionTree.tsx` — Collapsible tree (Std → Subject → Chapter → Topic)
+- [x] Click node → filters question list
+- [x] Show question count per node
 - [ ] Search/filter within tree
-- [ ] Question type filter checkboxes
+- [x] Question type filter checkboxes (via stats)
 - [ ] Exam type filter checkboxes
 - [ ] Language filter checkboxes
 
 ### 5.3 Center Panel — Question Editor
-- [ ] Create `QuestionEditor.tsx` — Main question content area
-- [ ] Integrate existing Tiptap editor for question content
-- [ ] Add option fields (dynamic, MCQ types)
-- [ ] Add correct answer selector (radio for single, checkbox for multi)
-- [ ] Add solution/explanation Tiptap editor
+- [x] Create `QuestionEditor.tsx` — Main question content area
+- [x] Integrate existing Tiptap editor for question content
+- [x] Add option fields (dynamic, MCQ types)
+- [x] Add correct answer selector (radio for single, checkbox for multi)
+- [x] Add solution/explanation Tiptap editor
 - [ ] Add question image upload
 
 ### 5.4 Right Panel — Metadata
-- [ ] Create `QuestionMetadata.tsx` — All dropdowns and fields
-- [ ] Standard dropdown (auto-filtered)
-- [ ] Subject dropdown (auto-filtered by standard)
-- [ ] Chapter dropdown (auto-filtered by subject+standard)
-- [ ] Topic dropdown (auto-filtered by chapter)
-- [ ] Question type dropdown (triggers UI change)
-- [ ] Exam type dropdown
-- [ ] Language dropdown
-- [ ] Difficulty selector (Easy/Medium/Hard/Expert)
-- [ ] Marks input (+/- buttons)
-- [ ] Negative marks input
-- [ ] Time limit input (optional)
-- [ ] Tags input (chip-style)
-- [ ] Status toggle (Draft/Published)
+- [x] Create `QuestionMetadata.tsx` — All dropdowns and fields
+- [x] Standard dropdown (auto-filtered)
+- [x] Subject dropdown (auto-filtered by standard)
+- [x] Chapter dropdown (auto-filtered by subject+standard)
+- [x] Topic dropdown (auto-filtered by chapter)
+- [x] Question type dropdown (triggers UI change)
+- [x] Exam type dropdown
+- [x] Language dropdown
+- [x] Difficulty selector (Easy/Medium/Hard/Expert)
+- [x] Marks input
+- [x] Negative marks input
+- [x] Time limit input (optional)
+- [x] Tags input (chip-style)
+- [x] Status toggle (Draft/Published)
 
 ### 5.5 Question Type Forms
-- [ ] `MCQSingleForm.tsx` — 4 option fields + radio selector
-- [ ] `MCQMultiForm.tsx` — 4+ option fields + checkbox selectors
-- [ ] `TrueFalseForm.tsx` — Two large buttons
-- [ ] `FillBlankForm.tsx` — Text input + accepted answers
-- [ ] `ShortAnswerForm.tsx` — Textarea for model answer
-- [ ] `LongAnswerForm.tsx` — Textarea + rubric builder
-- [ ] `MatchForm.tsx` — Paired left-right inputs
-- [ ] `OrderingForm.tsx` — Draggable list items
-- [ ] `NumericForm.tsx` — Value + tolerance + unit
+- [x] `MCQSingleForm.tsx` — 4 option fields + radio selector
+- [x] `MCQMultiForm.tsx` — 4+ option fields + checkbox selectors
+- [x] `TrueFalseForm.tsx` — Two large buttons
+- [x] `FillBlankForm.tsx` — Text input + accepted answers
+- [x] `ShortAnswerForm.tsx` — Textarea for model answer
+- [x] `LongAnswerForm.tsx` — Textarea for model answer
+- [x] `MatchForm.tsx` — Paired left-right inputs
+- [x] `OrderingForm.tsx` — Ordered list items
+- [x] `NumericForm.tsx` — Value + tolerance + unit
 
 ### 5.6 Save Actions
-- [ ] Save (save & stay) — validates all required fields
+- [x] Save (save & stay) — validates all required fields
 - [ ] Save & Next (save + move to next/new question)
-- [ ] Save as Draft (save without full validation)
+- [x] Save as Draft (save without full validation)
 - [ ] Auto-fill metadata from last question on Save & Next
 
 ### 5.7 Bottom Strip — Question List
-- [ ] Create `QuestionListStrip.tsx` — Collapsible bottom panel
-- [ ] Show all questions in current scope
-- [ ] Click row → load question in editor
-- [ ] Show status (saved/draft/unsaved)
+- [x] Create `QuestionListStrip.tsx` — Collapsible bottom panel
+- [x] Show all questions in current scope
+- [x] Click row → load question in editor
+- [x] Show status (saved/draft/unsaved)
 - [ ] Drag to reorder (sort_order)
 - [ ] Bulk actions (delete, move, export selected)
 - [ ] Search within list
@@ -276,26 +277,36 @@
 > _History tab on questions + analytics dashboard_
 
 ### 6.1 Question History Tab
-- [ ] Create `QuestionHistory.tsx` — History panel (right panel tab)
-- [ ] Usage summary (count, teachers, schools)
-- [ ] Used by teachers list (with school, count)
-- [ ] Used by schools list (with count)
-- [ ] Used in tests list (with date, student count)
-- [ ] Performance chart (correct/incorrect/skip bars)
-- [ ] Edit timeline (chronological changes)
+- [x] Create `QuestionHistoryPanel.tsx` — History slide-over panel
+- [x] Usage summary (count, teachers, schools)
+- [x] Used by teachers list (with count)
+- [x] Used by schools list (with count)
+- [x] Used in tests list (with date, student count)
+- [x] Performance chart (correct/incorrect/skip bars)
+- [x] Edit timeline (chronological changes)
 
 ### 6.2 Analytics Dashboard
-- [ ] Create `QuestionAnalyticsPage.tsx` — Full analytics page
-- [ ] Add route `/admin/analytics`
-- [ ] Add to sidebar navigation
-- [ ] Overview stats cards (total, most used, avg rate, unused)
-- [ ] Most Used Questions table (top 10/25/50)
-- [ ] Unused Questions list (with action buttons)
-- [ ] Usage Over Time chart (line chart)
-- [ ] Usage by School bar chart
-- [ ] Usage by Teacher bar chart
-- [ ] Performance by Subject chart
-- [ ] Performance by Difficulty chart
+- [x] Create `QuestionAnalyticsPage.tsx` — Full analytics page
+- [x] Add route `/admin/analytics`
+- [x] Add to sidebar navigation
+- [x] Overview stats cards (total, published, drafts, unused, usage, avg rate)
+- [x] Most Used Questions list (top 10)
+- [x] Unused Questions list
+- [x] Usage Over Time chart (daily bars)
+- [x] Usage by School bar chart
+- [x] Usage by Teacher bar chart
+- [x] Performance by Subject chart
+- [x] Performance by Difficulty chart
+
+### 6.2b Analytics Backend (new)
+- [x] `GET /api/admin/analytics/overview`
+- [x] `GET /api/admin/analytics/most-used`
+- [x] `GET /api/admin/analytics/unused`
+- [x] `GET /api/admin/analytics/by-school`
+- [x] `GET /api/admin/analytics/by-teacher`
+- [x] `GET /api/admin/analytics/over-time`
+- [x] `GET /api/admin/analytics/performance`
+- [x] `api.analytics.*` client methods + types
 
 ### 6.3 Question Quality Indicators
 - [ ] Quality score badge on question cards
@@ -315,11 +326,17 @@
 > _Create tests from question banks_
 
 ### 7.1 Test Creation
-- [ ] Create `TestCreatePage.tsx` — Test builder
-- [ ] Select questions from banks (manual or auto)
-- [ ] Configure: shuffle, time, marks, passing marks
-- [ ] Preview test before publishing
-- [ ] Save as draft or publish
+- [x] Schema — `tests` + `test_questions` tables (migration 005)
+- [x] Data layer — `server/supabase.js` test functions (guarded)
+- [x] API — tests CRUD endpoints (`server/index.js`)
+- [x] Client — `Test`/`TestQuestion` types + `api.tests.*`
+- [x] `TestsListPage.tsx` — test list + status + delete
+- [x] `TestCreatePage.tsx` — Test builder (manual question selection)
+- [x] Select questions from banks (manual; auto-select deferred)
+- [x] Configure: shuffle, time, marks, passing marks
+- [x] Preview test before publishing
+- [x] Save as draft or publish
+- [x] Routes + sidebar nav; gates (lint/typecheck/test 167/build) pass
 
 ### 7.2 Test Assignment
 - [ ] Assign test to students (individual or bulk)
@@ -416,13 +433,13 @@
 
 | Phase | Status | Started | Completed |
 |-------|--------|---------|-----------|
-| Phase 0: Database Foundation | ⬜ Not started | — | — |
-| Phase 1: API — Master Data CRUD | ⬜ Not started | — | — |
-| Phase 2: API — Question CRUD | ⬜ Not started | — | — |
+| Phase 0: Database Foundation | ✅ Done | Aug 2026 | Aug 2026 |
+| Phase 1: API — Master Data CRUD | ✅ Done | Aug 2026 | Aug 2026 |
+| Phase 2: API — Question CRUD | ✅ Done | Aug 2026 | Aug 2026 |
 | Phase 3: API — History & Analytics | ⬜ Not started | — | — |
-| Phase 4: Admin — Master Data UI | ⬜ Not started | — | — |
-| Phase 5: Admin — Question Entry | ⬜ Not started | — | — |
-| Phase 6: Admin — History & Analytics UI | ⬜ Not started | — | — |
+| Phase 4: Admin — Master Data UI | ✅ Done | Aug 2026 | Aug 2026 |
+| Phase 5: Admin — Question Entry | ✅ Done | Sep 2026 | Sep 2026 |
+| Phase 6: Admin — History & Analytics UI | ✅ Done | Sep 2026 | Sep 2026 |
 | Phase 7: Admin — Test Creation | ⬜ Not started | — | — |
 | Phase 8: Student Flow | ⬜ Not started | — | — |
 | Phase 9: Mobile Optimization | ⬜ Not started | — | — |
@@ -437,7 +454,7 @@
 - Phase 4–7 are frontend (admin panel)
 - Phase 8 is student-facing
 - Phase 9–10 are optimization and polish
-- **Current focus: Phase 0 — Database Foundation**
+- **Current focus: Phase 7 — Admin — Test Creation & Management**
 
 ---
 

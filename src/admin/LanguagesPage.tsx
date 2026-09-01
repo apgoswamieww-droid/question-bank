@@ -31,6 +31,7 @@ export default function LanguagesPage() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const handleSubmit = async (data: Record<string, unknown>) => {

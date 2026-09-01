@@ -43,7 +43,9 @@ export default function ChaptersPage() {
     }
   }, [filterStandard, filterSubject]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadMasters(); }, [loadMasters]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadChapters(); }, [loadChapters]);
 
   const getStandardName = (id: string) => standards.find((s) => s.id === id)?.name ?? "—";

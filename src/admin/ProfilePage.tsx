@@ -3,7 +3,6 @@ import {
   Camera,
   CheckCircle2,
   KeyRound,
-  Loader2,
   Mail,
   Save,
   User,

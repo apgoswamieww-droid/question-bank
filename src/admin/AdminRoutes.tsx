@@ -6,6 +6,10 @@ import AdminDashboardPage from "./AdminDashboardPage";
 import { UsersPage } from "./UsersPage";
 import { RolesPermissionsPage } from "./RolesPermissionsPage";
 import QuestionBanksPage from "./QuestionBanksPage";
+import QuestionEntryPage from "./QuestionEntryPage";
+import QuestionAnalyticsPage from "./QuestionAnalyticsPage";
+import TestsListPage from "./TestsListPage";
+import TestCreatePage from "./TestCreatePage";
 import TeacherEditorPage from "./TeacherEditorPage";
 import StandardsPage from "./StandardsPage";
 import SubjectsPage from "./SubjectsPage";
@@ -46,6 +50,39 @@ export default function AdminRoutes() {
             <Route path="students" element={<UsersPage role="student" />} />
             <Route path="parents" element={<UsersPage role="parent" />} />
             <Route path="question-banks" element={<QuestionBanksPage />} />
+            <Route
+              path="question-entry"
+              element={
+                <RequireSuperAdmin>
+                  <QuestionEntryPage />
+                </RequireSuperAdmin>
+              }
+            />
+            <Route
+              path="analytics"
+              element={
+                <RequireSuperAdmin>
+                  <QuestionAnalyticsPage />
+                </RequireSuperAdmin>
+              }
+            />
+            <Route path="tests" element={<TestsListPage />} />
+            <Route
+              path="tests/new"
+              element={
+                <RequireSuperAdmin>
+                  <TestCreatePage />
+                </RequireSuperAdmin>
+              }
+            />
+            <Route
+              path="tests/:id/edit"
+              element={
+                <RequireSuperAdmin>
+                  <TestCreatePage />
+                </RequireSuperAdmin>
+              }
+            />
             <Route path="standards" element={<StandardsPage />} />
             <Route path="subjects" element={<SubjectsPage />} />
             <Route path="chapters" element={<ChaptersPage />} />

@@ -72,6 +72,19 @@ import {
   getQuestionUsageHistory,
   getQuestionUsageSummary,
   getQuestionPerformance,
+  analyticsOverview,
+  analyticsMostUsed,
+  analyticsUnused,
+  analyticsBySchool,
+  analyticsByTeacher,
+  analyticsOverTime,
+  analyticsPerformance,
+  listTests,
+  getTestById,
+  createTest,
+  updateTest,
+  deleteTest,
+  countTests,
   listLanguages,
   createLanguage,
   listSchools,
@@ -1009,6 +1022,127 @@ app.get("/api/admin/questions/:id/usage", requireAuth, requirePermission(PERMISS
   try {
     const summary = await getQuestionUsageSummary(req.params.id);
     res.json(summary);
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------
+// Analytics dashboard (aggregate usage & performance)
+// ---------------------------------------------------------------
+app.get("/api/admin/analytics/overview", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (_req, res, next) => {
+  try {
+    res.json(await analyticsOverview());
+  } catch (err) { next(err); }
+});
+
+app.get("/api/admin/analytics/most-used", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (req, res, next) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
+    res.json({ questions: await analyticsMostUsed(limit) });
+  } catch (err) { next(err); }
+});
+
+app.get("/api/admin/analytics/unused", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (req, res, next) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 25, 100);
+    res.json({ questions: await analyticsUnused(limit) });
+  } catch (err) { next(err); }
+});
+
+app.get("/api/admin/analytics/by-school", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (_req, res, next) => {
+  try {
+    res.json({ schools: await analyticsBySchool() });
+  } catch (err) { next(err); }
+});
+
+app.get("/api/admin/analytics/by-teacher", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (_req, res, next) => {
+  try {
+    res.json({ teachers: await analyticsByTeacher() });
+  } catch (err) { next(err); }
+});
+
+app.get("/api/admin/analytics/over-time", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (_req, res, next) => {
+  try {
+    res.json(await analyticsOverTime());
+  } catch (err) { next(err); }
+});
+
+app.get("/api/admin/analytics/performance", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (_req, res, next) => {
+  try {
+    res.json(await analyticsPerformance());
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------
+// Admin: Tests (Phase 7 — Test Creation)
+// ---------------------------------------------------------------
+app.get("/api/admin/tests", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (req, res, next) => {
+  try {
+    const { status, limit, offset } = req.query ?? {};
+    const result = await listTests({
+      status: typeof status === "string" ? status : undefined,
+      limit: parseInt(limit, 10) || 100,
+      offset: parseInt(offset, 10) || 0,
+    });
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+app.get("/api/admin/tests/:id", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_VIEW), async (req, res, next) => {
+  try {
+    const result = await getTestById(req.params.id);
+    if (!result) return res.status(404).json({ error: "Test not found.", code: "NOT_FOUND" });
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+app.post("/api/admin/tests", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_MANAGE), async (req, res, next) => {
+  try {
+    const b = req.body ?? {};
+    if (!isSafeIdentifier(b.title)) return res.status(400).json({ error: "Title is required.", code: "VALIDATION" });
+    const questionIds = Array.isArray(b.questionIds) ? b.questionIds.filter((x) => typeof x === "string") : [];
+    const created = await createTest({
+      title: b.title.trim(),
+      description: isSafeOptional(b.description, 2000) ? b.description : undefined,
+      standard_id: isSafeOptional(b.standard_id) ? b.standard_id : undefined,
+      subject_id: isSafeOptional(b.subject_id) ? b.subject_id : undefined,
+      exam_type_id: isSafeOptional(b.exam_type_id) ? b.exam_type_id : undefined,
+      language_id: isSafeOptional(b.language_id) ? b.language_id : undefined,
+      duration_min: b.duration_min,
+      total_marks: b.total_marks,
+      passing_marks: b.passing_marks,
+      shuffle_questions: b.shuffle_questions,
+      shuffle_options: b.shuffle_options,
+      show_results: b.show_results,
+      show_answers: b.show_answers,
+      status: b.status || "draft",
+      created_by: req.user.sub,
+      questionIds,
+    });
+    res.status(201).json(created);
+  } catch (err) { next(err); }
+});
+
+app.patch("/api/admin/tests/:id", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_MANAGE), async (req, res, next) => {
+  try {
+    const existing = await getTestById(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Test not found.", code: "NOT_FOUND" });
+    const b = req.body ?? {};
+    if (b.title !== undefined && !isSafeIdentifier(b.title)) return res.status(400).json({ error: "Title is required.", code: "VALIDATION" });
+    const patch = {};
+    for (const key of ["title", "description", "standard_id", "subject_id", "exam_type_id", "language_id", "duration_min", "total_marks", "passing_marks", "shuffle_questions", "shuffle_options", "show_results", "show_answers", "status"]) {
+      if (b[key] !== undefined) patch[key] = b[key];
+    }
+    const questionIds = Array.isArray(b.questionIds) ? b.questionIds.filter((x) => typeof x === "string") : undefined;
+    const updated = await updateTest(req.params.id, patch, questionIds);
+    res.json(updated);
+  } catch (err) { next(err); }
+});
+
+app.delete("/api/admin/tests/:id", requireAuth, requirePermission(PERMISSIONS.QUESTION_BANKS_MANAGE), async (req, res, next) => {
+  try {
+    const removed = await deleteTest(req.params.id);
+    if (!removed) return res.status(404).json({ error: "Test not found.", code: "NOT_FOUND" });
+    res.json({ deleted: true });
   } catch (err) { next(err); }
 });
 

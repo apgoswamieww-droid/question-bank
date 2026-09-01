@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ExternalLink, Mail, Pencil, Plus, Trash2, Users as UsersIcon, ShieldCheck, CheckCircle2, Loader2 } from "lucide-react";
+import { ExternalLink, Mail, Pencil, Plus, Trash2, Users as UsersIcon, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { api, ApiError, type AdminUser, type UserRole } from "../api/client";
 import { useAdminAuth } from "../context/useAdminAuth";
 import { PageHeader } from "./components/PageHeader";

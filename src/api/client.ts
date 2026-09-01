@@ -340,6 +340,120 @@ export interface QuestionFilters {
   offset?: number;
 }
 
+export interface AnalyticsOverview {
+  total: number;
+  published: number;
+  drafts: number;
+  archived: number;
+  total_usage: number;
+  used_questions: number;
+  unused_questions: number;
+  avg_success_rate: number;
+  most_used: (Question & { usage_count: number }) | null;
+}
+
+export interface AnalyticsUsageRow {
+  usage_count: number;
+}
+
+export interface SchoolUsageRow extends AnalyticsUsageRow {
+  school_id: string;
+  school_name: string;
+  class_names: string[];
+}
+
+export interface TeacherUsageRow extends AnalyticsUsageRow {
+  teacher_id: string;
+  teacher_name: string;
+}
+
+export interface OverTimeBucket {
+  key: string;
+  count: number;
+}
+
+export interface OverTimeData {
+  daily: OverTimeBucket[];
+  weekly: OverTimeBucket[];
+  monthly: OverTimeBucket[];
+}
+
+export interface PerformanceBucket {
+  attempts: number;
+  correct: number;
+  success_rate: number;
+}
+
+export interface DifficultyPerfBucket extends PerformanceBucket {
+  difficulty: string;
+}
+
+export interface SubjectPerfBucket extends PerformanceBucket {
+  subject_id: string;
+  subject_name: string;
+}
+
+export interface PerformanceData {
+  by_difficulty: DifficultyPerfBucket[];
+  by_subject: SubjectPerfBucket[];
+  overall: { attempts: number; success_rate: number };
+}
+
+export type TestStatus = "draft" | "published" | "archived";
+
+export interface Test {
+  id: string;
+  title: string;
+  description: string | null;
+  standard_id: string | null;
+  subject_id: string | null;
+  exam_type_id: string | null;
+  language_id: string | null;
+  duration_min: number;
+  total_marks: number;
+  passing_marks: number;
+  shuffle_questions: boolean;
+  shuffle_options: boolean;
+  show_results: boolean;
+  show_answers: boolean;
+  status: TestStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  question_count?: number;
+}
+
+export interface TestQuestion {
+  id: string;
+  question_id: string;
+  sort_order: number;
+  marks: number;
+  question: Question;
+  options: QuestionOption[];
+}
+
+export interface TestWithQuestions extends Test {
+  questions: TestQuestion[];
+}
+
+export interface TestInput {
+  title: string;
+  description?: string | null;
+  standard_id?: string | null;
+  subject_id?: string | null;
+  exam_type_id?: string | null;
+  language_id?: string | null;
+  duration_min?: number;
+  total_marks?: number;
+  passing_marks?: number;
+  shuffle_questions?: boolean;
+  shuffle_options?: boolean;
+  show_results?: boolean;
+  show_answers?: boolean;
+  status?: TestStatus;
+  questionIds?: string[];
+}
+
 export const api = {
   login(email: string, password: string): Promise<LoginResponse> {
     return request<LoginResponse>("/auth/login", {
@@ -514,6 +628,53 @@ export const api = {
     },
     usage(id: string): Promise<{ total: number; teachers: { id: string; count: number }[]; schools: { id: string; count: number }[] }> {
       return request(`/admin/questions/${id}/usage`);
+    },
+  },
+
+  analytics: {
+    overview(): Promise<AnalyticsOverview> {
+      return request("/admin/analytics/overview");
+    },
+    mostUsed(limit = 10): Promise<{ questions: (Question & { usage_count: number })[] }> {
+      return request(`/admin/analytics/most-used?limit=${limit}`);
+    },
+    unused(limit = 25): Promise<{ questions: Question[] }> {
+      return request(`/admin/analytics/unused?limit=${limit}`);
+    },
+    bySchool(): Promise<{ schools: SchoolUsageRow[] }> {
+      return request("/admin/analytics/by-school");
+    },
+    byTeacher(): Promise<{ teachers: TeacherUsageRow[] }> {
+      return request("/admin/analytics/by-teacher");
+    },
+    overTime(): Promise<OverTimeData> {
+      return request("/admin/analytics/over-time");
+    },
+    performance(): Promise<PerformanceData> {
+      return request("/admin/analytics/performance");
+    },
+  },
+
+  tests: {
+    list(params?: { status?: TestStatus; limit?: number; offset?: number }): Promise<{ tests: Test[]; total: number }> {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set("status", params.status);
+      if (params?.limit) qs.set("limit", String(params.limit));
+      if (params?.offset) qs.set("offset", String(params.offset));
+      const q = qs.toString();
+      return request(`/admin/tests${q ? `?${q}` : ""}`);
+    },
+    get(id: string): Promise<TestWithQuestions> {
+      return request(`/admin/tests/${id}`);
+    },
+    create(data: TestInput): Promise<TestWithQuestions> {
+      return request("/admin/tests", { method: "POST", body: data });
+    },
+    update(id: string, data: Partial<TestInput>): Promise<TestWithQuestions> {
+      return request(`/admin/tests/${id}`, { method: "PATCH", body: data });
+    },
+    delete(id: string): Promise<{ deleted: boolean }> {
+      return request(`/admin/tests/${id}`, { method: "DELETE" });
     },
   },
 

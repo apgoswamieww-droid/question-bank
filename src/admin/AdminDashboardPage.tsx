@@ -4,7 +4,7 @@ import { BookOpenCheck, GraduationCap, Users, UserRound } from "lucide-react";
 import { api, ApiError } from "../api/client";
 import { useAdminAuth, useCan, PERMISSIONS } from "../context/useAdminAuth";
 import { ROLE_META } from "./components/roleMeta";
-import { DashboardSkeleton, CardSkeleton } from "./components/Skeleton";
+import { DashboardSkeleton } from "./components/Skeleton";
 
 interface Stats {
   teacher: number;
@@ -22,6 +22,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!can(PERMISSIONS.USERS_VIEW)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }

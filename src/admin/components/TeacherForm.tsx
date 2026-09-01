@@ -82,8 +82,6 @@ export function TeacherForm({ mode, initial, submitting, error, onSubmit }: Teac
     ...(touched.phone ? { phone: validatePhone(phone) } : {}),
   };
 
-  const hasErrors = Object.values(fieldErrors).some(Boolean);
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setLocalError(null);

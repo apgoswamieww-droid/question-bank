@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   BookOpenCheck,
+  BarChart3,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -21,6 +22,7 @@ import {
   User,
   Users,
   UserRound,
+  PenLine,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -62,7 +64,10 @@ const navSections: NavSection[] = [
     title: "Content",
     items: [
       { label: "Editor", icon: BookOpenCheck, to: "/admin/editor", perm: PERMISSIONS.QUESTION_BANKS_MANAGE },
+      { label: "Question Entry", icon: PenLine, to: "/admin/question-entry", perm: PERMISSIONS.QUESTION_BANKS_MANAGE },
+      { label: "Tests", icon: ClipboardList, to: "/admin/tests", perm: PERMISSIONS.QUESTION_BANKS_MANAGE },
       { label: "Question Banks", icon: Library, to: "/admin/question-banks", perm: PERMISSIONS.QUESTION_BANKS_VIEW },
+      { label: "Analytics", icon: BarChart3, to: "/admin/analytics", perm: PERMISSIONS.QUESTION_BANKS_VIEW },
     ],
   },
   {

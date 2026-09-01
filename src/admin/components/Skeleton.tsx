@@ -10,10 +10,7 @@
  *   <FormSkeleton />                              // form loading
  */
 
-import type { ReactNode } from "react";
-
 /* ── Base shimmer block ────────────────────────────────────────── */
-
 export function Skeleton({
   className = "",
   rounded = "rounded-xl",

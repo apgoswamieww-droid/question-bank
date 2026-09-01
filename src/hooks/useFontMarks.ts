@@ -3,7 +3,7 @@ import type { Editor } from "@tiptap/react";
 
 export function useFontMarks(editor: Editor | null) {
   const [selectedFont, setSelectedFont] = useState("Normal");
-  const [selectedFontSize, setSelectedFontSize] = useState("18");
+  const [selectedFontSize, setSelectedFontSize] = useState("14");
   const savedSelection = useRef<{ from: number; to: number } | null>(null);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ export function useFontMarks(editor: Editor | null) {
       const fontSize = attrs?.fontSize || null;
 
       setSelectedFont(fontFamily ? fontFamily : "Normal");
-      setSelectedFontSize(fontSize ? fontSize.replace("px", "") : "18");
+      setSelectedFontSize(fontSize ? fontSize.replace("px", "") : "14");
     };
 
     updateFromEditor();

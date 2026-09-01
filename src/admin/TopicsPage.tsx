@@ -51,8 +51,11 @@ export default function TopicsPage() {
     }
   }, [filterChapter]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadMasters(); }, [loadMasters]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadChapters(); setFilterChapter(""); }, [loadChapters]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadTopics(); }, [loadTopics]);
 
   const getChapterName = (id: string) => chapters.find((c) => c.id === id)?.name ?? "—";

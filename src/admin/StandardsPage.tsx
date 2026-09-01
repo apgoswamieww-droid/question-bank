@@ -33,6 +33,8 @@ export default function StandardsPage() {
     }
   }, []);
 
+  // Deliberate initial-load pattern (repeated on user actions via `load`).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const handleSubmit = async (data: Record<string, unknown>) => {

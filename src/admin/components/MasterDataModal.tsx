@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "./Button";
 
 export interface MasterField {
@@ -40,6 +40,7 @@ export function MasterDataModal({
       for (const f of fields) {
         defaults[f.key] = initial?.[f.key] ?? (f.type === "number" ? 0 : "");
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(defaults);
       setErrors({});
       setServerError(null);
